@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicație cu Tab-uri</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="tabs-container">
+        <div class="tab-nav">
+            <button class="tab-btn active" data-tab="acasa">Acasă 🏠</button>
+            <button class="tab-btn" data-tab="upload">Încărcare Fișiere 📤</button>
+            <button class="tab-btn" data-tab="contact">Contact 📞</button>
+        </div>
+
+        <div class="tab-content-container">
+            <div id="acasa" class="tab-content active">
+                <h2>Bun venit!</h2>
+                <p>Aceasta este pagina principală a aplicației. Poți naviga folosind butoanele de mai sus.</p>
+                <p>Pentru a încărca fișiere, selectează tab-ul "Încărcare Fișiere".</p>
+            </div>
+
+            <div id="upload" class="tab-content">
+                <form id="upload-form">
+                    <h2>Încarcă fișierele necesare</h2>
+                    
+                    <div class="form-group">
+                        <label for="zip-file">Fișier arhivă (.zip):</label>
+                        <input type="file" id="zip-file" name="zipFile" accept=".zip" required>
+                    </div>
+            
+                    <div class="form-group">
+                        <label for="pdf-file">Document (.pdf):</label>
+                        <input type="file" id="pdf-file" name="pdfFile" accept=".pdf" required>
+                    </div>
+            
+                    <button type="submit">Trimite fișierele 🚀</button>
+                    
+                    <p id="status"></p>
+                </form>
+            </div>
+
+            <div id="contact" class="tab-content">
+                <h2>Contact</h2>
+                <p>Ne poți contacta la adresa de email: contact@exemplu.com</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

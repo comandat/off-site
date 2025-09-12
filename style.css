@@ -1,0 +1,105 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f4f7f6;
+    margin: 20px;
+}
+
+.tabs-container {
+    width: 100%;
+    max-width: 600px;
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    overflow: hidden; /* Asigură colțuri rotunjite corecte */
+}
+
+/* Stiluri pentru navigația cu tab-uri */
+.tab-nav {
+    display: flex;
+    background-color: #f1f1f1;
+}
+
+.tab-btn {
+    flex: 1; /* Butoanele ocupă spațiu egal */
+    padding: 15px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    color: #555;
+    transition: background-color 0.3s, color 0.3s;
+    border-bottom: 3px solid transparent;
+}
+
+.tab-btn:hover {
+    background-color: #e9e9e9;
+}
+
+/* Stil pentru butonul activ */
+.tab-btn.active {
+    color: #007bff;
+    border-bottom: 3px solid #007bff;
+}
+
+/* Stiluri pentru conținutul tab-urilor */
+.tab-content-container {
+    padding: 30px;
+}
+
+.tab-content {
+    display: none; /* Ascunde tot conținutul de tab-uri implicit */
+}
+
+.tab-content.active {
+    display: block; /* Afișează DOAR conținutul tab-ului activ */
+}
+
+
+/* Stilurile existente pentru formular (rămân valabile) */
+#upload-form h2 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+}
+.form-group {
+    margin-bottom: 20px;
+}
+label {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    font-weight: bold;
+}
+input[type="file"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+button[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 5px;
+    background-color: #007bff;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+button[type="submit"]:hover {
+    background-color: #0056b3;
+}
+#status {
+    margin-top: 15px;
+    text-align: center;
+    font-weight: bold;
+    color: #333;
+}

@@ -1,27 +1,24 @@
-// --- NOU: LOGICA PENTRU TAB-URI ---
+// --- LOGICA PENTRU TAB-URI ---
 const tabButtons = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 
 tabButtons.forEach(button => {
     button.addEventListener('click', () => {
-        // Obține id-ul conținutului țintă din atributul data-tab
         const targetTabId = button.dataset.tab;
         
-        // 1. Dezactivează toate butoanele și ascunde tot conținutul
         tabButtons.forEach(btn => btn.classList.remove('active'));
         tabContents.forEach(content => content.classList.remove('active'));
 
-        // 2. Activează butonul pe care am dat click
         button.classList.add('active');
-
-        // 3. Afișează conținutul corespunzător
         document.getElementById(targetTabId).classList.add('active');
     });
 });
 
 
-// --- CODUL EXISTENT PENTRU FORMULAR (nu necesită nicio modificare) ---
-const WEBHOOK_URL = 'https://your-webhook-url.com/endpoint'; 
+// --- CODUL PENTRU FORMULAR ---
+
+// URL-UL A FOST ACTUALIZAT AICI
+const WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook-test/d92efbca-eaf1-430e-8748-cc6466c82c6e'; 
 
 const uploadForm = document.getElementById('upload-form');
 const zipInput = document.getElementById('zip-file');
@@ -55,7 +52,9 @@ uploadForm.addEventListener('submit', async (event) => {
             status.textContent = '✅ Fișierele au fost trimise cu succes!';
             uploadForm.reset();
         } else {
+            const errorText = await response.text();
             status.textContent = `❌ Eroare la trimitere: ${response.statusText}`;
+            console.error('Răspuns eroare de la server:', errorText);
         }
     } catch (error) {
         status.textContent = '❌ Eroare de rețea. Verifică conexiunea sau URL-ul webhook-ului.';

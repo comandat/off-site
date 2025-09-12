@@ -17,27 +17,39 @@
 
         <div class="tab-content-container">
             <div id="acasa" class="tab-content active">
-                <h2>Bun venit!</h2>
-                <p>Aceasta este pagina principală a aplicației. Poți naviga folosind butoanele de mai sus.</p>
-                <p>Pentru a încărca fișiere, selectează tab-ul "Încărcare Fișiere".</p>
+                <div id="comenzi-container">
+                    <div class="collapsible-section">
+                        <h3 class="collapsible-header active">
+                            Comenzi în Pregătire
+                            <span class="arrow">▼</span>
+                        </h3>
+                        <div class="collapsible-content" id="pregatire-list">
+                            <p class="loading-message">Se încarcă datele...</p>
+                        </div>
+                    </div>
+                    <div class="collapsible-section">
+                        <h3 class="collapsible-header">
+                            Comenzi Finalizate
+                            <span class="arrow">▶</span>
+                        </h3>
+                        <div class="collapsible-content hidden" id="finalizate-list">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="upload" class="tab-content">
                 <form id="upload-form">
                     <h2>Încarcă fișierele necesare</h2>
-                    
                     <div class="form-group">
                         <label for="zip-file">Manifest (.zip):</label>
                         <input type="file" id="zip-file" name="zipFile" accept=".zip" required>
                     </div>
-            
                     <div class="form-group">
                         <label for="pdf-file">Factura (.pdf):</label>
                         <input type="file" id="pdf-file" name="pdfFile" accept=".pdf" required>
                     </div>
-            
                     <button type="submit">Trimite fișierele 🚀</button>
-                    
                     <p id="status"></p>
                 </form>
             </div>

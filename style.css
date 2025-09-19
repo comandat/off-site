@@ -31,4 +31,136 @@ body {
     overflow: hidden;
 }
 
-/* ... și așa mai departe ... */
+.tab-nav {
+    display: flex;
+    background-color: #f1f1f1;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    color: #555;
+    transition: background-color 0.3s, color 0.3s;
+    border-bottom: 3px solid transparent;
+}
+
+.tab-btn:hover {
+    background-color: #e9e9e9;
+}
+
+.tab-btn.active {
+    color: #007bff;
+    border-bottom: 3px solid #007bff;
+}
+
+.tab-content-container {
+    padding: 30px;
+    min-height: 320px; 
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+#upload-form h2 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+}
+.form-group {
+    margin-bottom: 20px;
+}
+label {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    font-weight: bold;
+}
+input[type="file"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+button[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 5px;
+    background-color: #007bff;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+button[type="submit"]:hover {
+    background-color: #0056b3;
+}
+#status {
+    margin-top: 15px;
+    text-align: center;
+    font-weight: bold;
+    color: #333;
+}
+
+/* STILURI NOI ADĂUGATE PENTRU TAB-UL ACASĂ */
+.collapsible-section {
+    margin-bottom: 10px;
+}
+.collapsible-header {
+    background-color: #f1f1f1;
+    padding: 12px 18px;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+.collapsible-header:hover {
+    background-color: #e9e9e9;
+}
+.collapsible-header.active {
+    background-color: #e0eaff;
+}
+.collapsible-header .arrow {
+    font-size: 12px;
+    transition: transform 0.3s;
+}
+.collapsible-content {
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 5px 5px;
+}
+.hidden {
+    display: none;
+}
+.order-item {
+    padding: 10px;
+    margin-bottom: 5px;
+    background-color: #fff;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+.order-item:hover {
+    background-color: #f9f9f9;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.loading-message, .error-message {
+    color: #777;
+}

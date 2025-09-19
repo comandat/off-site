@@ -1,166 +1,32 @@
-/* ADAUGĂ ACEST COD LA ÎNCEPUTUL FIȘIERULUI style.css */
-:root {
-    --primary-color: #007bff; /* Culoarea primară pentru login */
+/* Stil de bază pentru butoanele din sidebar */
+.sidebar-btn {
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    color: #4b5563; /* gray-600 */
 }
 
-/* Ajustare minoră pentru body pentru a permite ambelor pagini să funcționeze corect */
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background-color: #f4f7f6;
-    margin: 0; /* Margin 0 pentru a se potrivi cu pagina de login */
-}
-
-/* Stiluri specifice pentru containerul aplicației principale */
-.main-app-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    padding: 20px; /* Am mutat padding-ul de pe body aici */
-}
-
-
-/* RESTUL CODULUI CSS RĂMÂNE NESCHIMBAT */
-
-.tabs-container {
-    width: 100%;
-    max-width: 600px;
-    background: #ffffff;
-    border-radius: 10px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    overflow: hidden;
-}
-
-.tab-nav {
-    display: flex;
-    background-color: #f1f1f1;
-}
-
-.tab-btn {
-    flex: 1;
-    padding: 15px;
-    border: none;
-    background-color: transparent;
-    cursor: pointer;
-    font-size: 16px;
+/* Stil pentru butonul activ/selectat */
+.sidebar-btn.active-tab {
+    background-color: #e0f2fe; /* light blue */
+    color: #0284c7; /* sky-700 */
     font-weight: 500;
-    color: #555;
-    transition: background-color 0.3s, color 0.3s;
-    border-bottom: 3px solid transparent;
 }
 
-.tab-btn:hover {
-    background-color: #e9e9e9;
+/* Stil la hover pentru butoanele inactive */
+.sidebar-btn:not(.active-tab):hover {
+    background-color: #f3f4f6; /* gray-100 */
 }
 
-.tab-btn.active {
-    color: #007bff;
-    border-bottom: 3px solid #007bff;
-}
-
-.tab-content-container {
-    padding: 30px;
-    min-height: 320px; 
-}
-
-.tab-content {
-    display: none;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-#upload-form h2 {
-    text-align: center;
-    color: #333;
-    margin-bottom: 20px;
-}
-.form-group {
-    margin-bottom: 20px;
-}
-label {
-    display: block;
-    margin-bottom: 5px;
-    color: #555;
-    font-weight: bold;
-}
-input[type="file"] {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-}
-button[type="submit"] {
-    width: 100%;
-    padding: 12px;
-    border: none;
-    border-radius: 5px;
-    background-color: #007bff;
-    color: white;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-button[type="submit"]:hover {
-    background-color: #0056b3;
-}
-#status {
-    margin-top: 15px;
-    text-align: center;
-    font-weight: bold;
-    color: #333;
-}
-
-/* STILURI NOI ADĂUGATE PENTRU TAB-UL ACASĂ */
-.collapsible-section {
-    margin-bottom: 10px;
-}
-.collapsible-header {
-    background-color: #f1f1f1;
-    padding: 12px 18px;
-    cursor: pointer;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: background-color 0.2s;
-}
-.collapsible-header:hover {
-    background-color: #e9e9e9;
-}
-.collapsible-header.active {
-    background-color: #e0eaff;
-}
-.collapsible-header .arrow {
-    font-size: 12px;
-    transition: transform 0.3s;
-}
-.collapsible-content {
-    padding: 15px;
-    border: 1px solid #ddd;
-    border-top: none;
-    border-radius: 0 0 5px 5px;
-}
+/* Clasa pentru a ascunde elemente (folosită de JS) */
 .hidden {
     display: none;
 }
-.order-item {
-    padding: 10px;
-    margin-bottom: 5px;
-    background-color: #fff;
-    border: 1px solid #eee;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s, box-shadow 0.2s;
+
+/* Animația de rotație pentru săgeata din secțiunile collapsible */
+.collapsible-header .arrow {
+    transition: transform 0.3s ease;
 }
-.order-item:hover {
-    background-color: #f9f9f9;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-.loading-message, .error-message {
-    color: #777;
+
+/* Starea "deschisă" a săgeții */
+.collapsible-header.open .arrow {
+    transform: rotate(0deg);
 }

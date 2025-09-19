@@ -126,10 +126,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: formData,
                 });
 
-                if (response.ok) {
-                    status.textContent = '✅ Fișierele au fost trimise cu succes!';
-                    uploadForm.reset();
-                } else {
+if (response.ok) {
+    const result = await response.json();
+    if (result.status === 'success') {
+        status.textContent = 'Comanda Incarcata';
+    } else {
+        status.textContent = '✅ Fișierele au fost trimise cu succes!';
+    }
+    uploadForm.reset();
+} else {
                     const errorText = await response.text();
                     status.textContent = `❌ Eroare la trimitere: ${response.statusText}`;
                     console.error('Răspuns eroare de la server:', errorText);
@@ -144,3 +149,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inițiem încărcarea datelor pentru prima vizită pe pagină
     loadAndDisplayHomeData();
 });
+

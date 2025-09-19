@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(webhookUrl, {
                 method: 'POST',
-                // Folosim 'text/plain' așa cum ai specificat
+                // --- MODIFICAREA AICI: Trimitere ca la început ---
                 headers: { 'Content-Type': 'text/plain' }, 
                 body: JSON.stringify({ code: accessCode }),
             });
@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (responseData && responseData.status === 'success') {
                 sessionStorage.setItem('isLoggedIn', 'true');
-                window.location.href = 'main.html'; // Redirecționare la succes
+                window.location.href = 'main.html';
             } else {
                 errorMessage.textContent = 'Cod de acces incorect.';
             }

@@ -1,49 +1,77 @@
 <!DOCTYPE html>
 <html lang="ro">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Manager Stocuri</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet"/>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+
     <link rel="stylesheet" href="css/style.css">
+    
+    <style>
+        /* Suprascriere pentru a alinia fontul de iconițe mai bine */
+        .material-icons, .material-symbols-outlined {
+            font-size: 24px; /* Mărime standard */
+        }
+    </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-[Inter,sans-serif]">
 
-    <div class="flex h-screen">
-        <aside class="w-64 bg-white shadow-lg flex flex-col">
-            <div class="p-6 border-b border-gray-200">
-                <h1 class="text-2xl font-bold text-gray-700">Manager Stocuri</h1>
-            </div>
-            <nav class="flex-1 p-4 space-y-2">
-                <button class="sidebar-btn active-tab flex items-center w-full text-left p-3 rounded-lg" data-tab="comenzi">
-                    <span class="material-symbols-outlined mr-3">apps</span>
-                    <span>Toate Comenzile</span>
-                </button>
-                <button class="sidebar-btn flex items-center w-full text-left p-3 rounded-lg" data-tab="import">
-                    <span class="material-symbols-outlined mr-3">upload_file</span>
-                    <span>Import Comandă Nouă</span>
-                </button>
-                <button class="sidebar-btn flex items-center w-full text-left p-3 rounded-lg" data-tab="imprimanta">
-                    <span class="material-symbols-outlined mr-3">print</span>
-                    <span>Imprimantă</span>
-                </button>
-            </nav>
-            <div class="p-4 border-t border-gray-200">
-                <p class="text-xs text-gray-500">© 2025 Compania Ta</p>
-            </div>
-        </aside>
+<body class="bg-gray-100 dark:bg-background-dark font-sans text-text-light dark:text-text-dark">
+<div class="flex h-screen">
 
-        <main class="flex-1 p-6 sm:p-8 overflow-y-auto">
+    <aside class="w-64 bg-white dark:bg-surface-dark flex flex-col border-r border-gray-200 dark:border-gray-700">
+        <div class="h-16 flex items-center px-6 border-b border-gray-200 dark:border-gray-700">
+            <h1 class="text-xl font-bold">Manager Stocuri</h1>
+        </div>
+        <nav class="flex-1 p-4 space-y-2">
+            <button class="sidebar-btn active-tab flex items-center w-full text-left px-4 py-2 text-sm font-medium rounded-lg" data-tab="comenzi">
+                <span class="material-icons mr-3">grid_view</span>
+                <span>Toate Comenzile</span>
+            </button>
+            <button class="sidebar-btn flex items-center w-full text-left px-4 py-2 text-sm font-medium rounded-lg" data-tab="import">
+                <span class="material-icons mr-3">file_upload</span>
+                <span>Import Comandă Nouă</span>
+            </button>
+            <button class="sidebar-btn flex items-center w-full text-left px-4 py-2 text-sm font-medium rounded-lg" data-tab="imprimanta">
+                <span class="material-icons mr-3">print</span>
+                <span>Imprimantă</span>
+            </button>
+        </nav>
+        <div class="p-6 mt-auto border-t border-gray-200 dark:border-gray-700">
+            <p class="text-xs text-muted-light dark:text-muted-dark">© 2025 Compania Ta</p>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col overflow-y-auto">
+        <header class="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-surface-dark sticky top-0 z-10">
+            <div class="flex items-center space-x-4">
+                <h2 id="page-title" class="text-lg font-semibold">Toate Comenzile</h2>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="relative w-64">
+                    <span class="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-muted-light dark:text-muted-dark">search</span>
+                    <input class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-background-dark focus:ring-primary focus:border-primary" placeholder="Caută comandă..." type="text"/>
+                </div>
+                <button class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+                    <span class="material-icons text-muted-light dark:text-muted-dark">notifications</span>
+                </button>
+                <img alt="Avatar utilizator" class="w-8 h-8 rounded-full" src="https://i.pravatar.cc/32"/>
+            </div>
+        </header>
+
+        <div class="p-6 lg:p-8 flex-1">
             
             <div id="comenzi" class="tab-content">
-                <h2 class="text-3xl font-bold text-gray-800 mb-6">Panou de Comenzi</h2>
                 <div class="max-w-3xl">
                     <div class="collapsible-section bg-white rounded-lg shadow-sm mb-4">
                         <h3 class="collapsible-header flex justify-between items-center p-4 cursor-pointer border-b border-gray-200">
-                            <span>Comenzi în Pregătire</span>
-                            <span class="arrow transform rotate-180">▲</span>
+                            <span class="font-semibold">Comenzi în Pregătire</span>
+                            <span class="arrow transform transition-transform duration-300">▲</span>
                         </h3>
                         <div class="collapsible-content p-4" id="pregatire-list">
                             <p class="loading-message text-gray-500">Se încarcă datele...</p>
@@ -51,8 +79,8 @@
                     </div>
                     <div class="collapsible-section bg-white rounded-lg shadow-sm">
                         <h3 class="collapsible-header flex justify-between items-center p-4 cursor-pointer border-b border-gray-200">
-                            <span>Comenzi Finalizate</span>
-                            <span class="arrow">▼</span>
+                            <span class="font-semibold">Comenzi Finalizate</span>
+                            <span class="arrow transform rotate-180 transition-transform duration-300">▲</span>
                         </h3>
                         <div class="collapsible-content hidden p-4" id="finalizate-list">
                              <p class="text-gray-500">Nicio comandă finalizată de afișat.</p>
@@ -62,8 +90,7 @@
             </div>
 
             <div id="import" class="tab-content hidden">
-                 <h2 class="text-3xl font-bold text-gray-800 mb-6">Import Comandă Nouă</h2>
-                 <div class="max-w-md bg-white p-8 rounded-lg shadow-md">
+                 <div class="max-w-md bg-white p-8 rounded-xl shadow-sm">
                     <form id="upload-form">
                         <div class="mb-5">
                             <label for="zip-file" class="block mb-2 text-sm font-medium text-gray-700">Manifest (.zip):</label>
@@ -85,8 +112,7 @@
             </div>
 
             <div id="imprimanta" class="tab-content hidden">
-                 <h2 class="text-3xl font-bold text-gray-800 mb-6">Setări Imprimantă</h2>
-                 <div class="max-w-md bg-white p-8 rounded-lg shadow-md">
+                 <div class="max-w-md bg-white p-8 rounded-xl shadow-sm">
                     <p class="text-gray-600">Aici vor fi opțiunile și setările pentru imprimantă.</p>
                     <button class="mt-4 text-white bg-gray-600 hover:bg-gray-700 font-medium rounded-lg text-sm px-5 py-2.5">
                         Configurează Imprimanta
@@ -94,9 +120,31 @@
                  </div>
             </div>
 
-        </main>
-    </div>
+        </div>
+    </main>
+</div>
 
-    <script src="scripts/main.js"></script>
+<script src="scripts/main.js"></script>
+<script>
+    // Script mic pentru a schimba titlul din header in functie de tab
+    document.addEventListener('DOMContentLoaded', () => {
+        const sidebarButtons = document.querySelectorAll('.sidebar-btn');
+        const pageTitle = document.getElementById('page-title');
+        
+        const tabTitles = {
+            'comenzi': 'Toate Comenzile',
+            'import': 'Import Comandă Nouă',
+            'imprimanta': 'Setări Imprimantă'
+        };
+
+        sidebarButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.dataset.tab;
+                pageTitle.textContent = tabTitles[tabId] || 'Panou';
+            });
+        });
+    });
+</script>
+
 </body>
 </html>

@@ -29,8 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const commandsHTML = commands.length > 0
                 ? commands.map(cmd => `
                     <div class="bg-white p-4 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow" data-command-id="${cmd.id}">
-                        <h3 class="font-bold text-gray-800 pointer-events-none">${cmd.name}</h3>
-                        <p class="text-sm text-gray-500 pointer-events-none">${cmd.products.length} produse</p>
+                        <h3 class="font-bold text-gray-800">${cmd.name}</h3>
+                        <p class="text-sm text-gray-500">${cmd.products.length} produse</p>
                     </div>`).join('')
                 : `<p class="col-span-full text-gray-500">Nu există comenzi de afișat.</p>`;
             
@@ -67,10 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const d = details[p.asin];
                     return `
                     <div class="flex items-center gap-4 bg-white p-3 rounded-md shadow-sm cursor-pointer hover:bg-gray-50" data-product-id="${p.id}">
-                        <img src="${d?.images?.[0] || ''}" class="w-16 h-16 object-cover rounded-md bg-gray-200 pointer-events-none">
-                        <div class="flex-1 pointer-events-none"><p class="font-semibold line-clamp-2">${d?.title || 'N/A'}</p><p class="text-sm text-gray-500">${p.asin}</p></div>
-                        <div class="text-right pointer-events-none"><p class="font-bold text-lg">${p.found}/${p.expected}</p></div>
-                        <span class="material-icons text-gray-400 pointer-events-none">chevron_right</span>
+                        <img src="${d?.images?.[0] || ''}" class="w-16 h-16 object-cover rounded-md bg-gray-200">
+                        <div class="flex-1"><p class="font-semibold line-clamp-2">${d?.title || 'N/A'}</p><p class="text-sm text-gray-500">${p.asin}</p></div>
+                        <div class="text-right"><p class="font-bold text-lg">${p.found}/${p.expected}</p></div>
+                        <span class="material-icons text-gray-400">chevron_right</span>
                     </div>`;
                 }).join('')}
             </div>`,
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="lg:col-span-1 space-y-6">
                     <div class="bg-white p-4 rounded-xl shadow-sm"><img src="${details.images?.[0] || ''}" class="w-full h-auto rounded-lg"></div>
                     <div class="bg-white p-4 rounded-xl shadow-sm space-y-4">
-                        <div><label class="text-sm text-gray-500">ASIN</label><input type="text" class="mt-1 block w-full p-0 border-0 border-b-2" value="${product.asin}" readonly></div>
+                        <div><label class="text-sm text-gray-500">ASIN</label><input type="text" id="product-asin" class="mt-1 block w-full p-0 border-0 border-b-2" value="${product.asin}" readonly></div>
                     </div>
                 </div>
                 <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6 space-y-6">
@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionButton.textContent = 'Se salvează...';
                 actionButton.disabled = true;
                 const updatedData = {
-                    asin: document.querySelector('input[value="' + state.currentProductId + '"]')?.value || state.currentProductId,
+                    asin: document.getElementById('product-asin').value,
                     title: document.getElementById('product-title').value,
                     description: document.getElementById('product-description').value,
                 };
@@ -186,14 +186,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!formData.get('zipFile')?.size || !formData.get('pdfFile')?.size) {
                 statusEl.textContent = 'Te rog selectează ambele fișiere.';
-                statusEl.className = 'text-red-600'; return;
+                statusEl.classList.add('text-red-600'); return;
             }
             
             uploadBtn.disabled = true;
             btnText.classList.add('hidden');
             btnLoader.classList.remove('hidden');
             statusEl.textContent = 'Se trimit fișierele...';
-            statusEl.className = '';
+            statusEl.classList.remove('text-red-600', 'text-green-600');
 
             try {
                 const response = await fetch(N8N_UPLOAD_WEBHOOK_URL, { method: 'POST', body: formData });
@@ -201,13 +201,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const resData = await response.json();
                 if (resData.status === 'success') {
                     statusEl.textContent = 'Comanda a fost importată!';
-                    statusEl.className = 'text-green-600';
+                    statusEl.classList.add('text-green-600');
                     event.target.reset();
                     await renderView('comenzi');
                 } else throw new Error('Serverul nu a confirmat succesul.');
             } catch (error) {
                 statusEl.textContent = 'A apărut o eroare. Încearcă din nou.';
-                statusEl.className = 'text-red-600';
+                statusEl.classList.add('text-red-600');
             } finally {
                 uploadBtn.disabled = false;
                 btnText.classList.remove('hidden');

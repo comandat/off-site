@@ -5,31 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manager Stocuri</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
     <link rel="stylesheet" href="css/style.css">
-    <script>
-        // Verificare autentificare
-        if (sessionStorage.getItem('isLoggedIn') !== 'true') {
-            window.location.href = 'index.html';
-        }
-    </script>
 </head>
-<body class="bg-gray-100 font-sans text-gray-800">
+<body class="bg-gray-100 text-gray-800 font-[Inter,sans-serif]">
+
     <div class="flex h-screen">
         <aside class="w-64 bg-white shadow-lg flex flex-col">
             <div class="p-6 border-b border-gray-200">
                 <h1 class="text-2xl font-bold text-gray-700">Manager Stocuri</h1>
             </div>
             <nav class="flex-1 p-4 space-y-2">
-                <button data-view="comenzi" class="sidebar-btn active-tab flex items-center w-full text-left p-3 rounded-lg">
+                <button class="sidebar-btn active-tab flex items-center w-full text-left p-3 rounded-lg" data-tab="comenzi">
                     <span class="material-symbols-outlined mr-3">apps</span>
                     <span>Toate Comenzile</span>
                 </button>
-                <button data-view="import" class="sidebar-btn flex items-center w-full text-left p-3 rounded-lg">
+                <button class="sidebar-btn flex items-center w-full text-left p-3 rounded-lg" data-tab="import">
                     <span class="material-symbols-outlined mr-3">upload_file</span>
                     <span>Import Comandă Nouă</span>
+                </button>
+                <button class="sidebar-btn flex items-center w-full text-left p-3 rounded-lg" data-tab="imprimanta">
+                    <span class="material-symbols-outlined mr-3">print</span>
+                    <span>Imprimantă</span>
                 </button>
             </nav>
             <div class="p-4 border-t border-gray-200">
@@ -37,14 +35,33 @@
             </div>
         </aside>
 
-        <main id="main-content" class="flex-1 overflow-y-auto">
-            <div id="view-comenzi" class="view-container p-6 sm:p-8">
+        <main class="flex-1 p-6 sm:p-8 overflow-y-auto">
+            
+            <div id="comenzi" class="tab-content">
                 <h2 class="text-3xl font-bold text-gray-800 mb-6">Panou de Comenzi</h2>
-                <div id="comenzi-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="max-w-3xl">
+                    <div class="collapsible-section bg-white rounded-lg shadow-sm mb-4">
+                        <h3 class="collapsible-header flex justify-between items-center p-4 cursor-pointer border-b border-gray-200">
+                            <span>Comenzi în Pregătire</span>
+                            <span class="arrow transform rotate-180">▲</span>
+                        </h3>
+                        <div class="collapsible-content p-4" id="pregatire-list">
+                            <p class="loading-message text-gray-500">Se încarcă datele...</p>
+                        </div>
                     </div>
+                    <div class="collapsible-section bg-white rounded-lg shadow-sm">
+                        <h3 class="collapsible-header flex justify-between items-center p-4 cursor-pointer border-b border-gray-200">
+                            <span>Comenzi Finalizate</span>
+                            <span class="arrow">▼</span>
+                        </h3>
+                        <div class="collapsible-content hidden p-4" id="finalizate-list">
+                             <p class="text-gray-500">Nicio comandă finalizată de afișat.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div id="view-import" class="view-container hidden p-6 sm:p-8">
+            <div id="import" class="tab-content hidden">
                  <h2 class="text-3xl font-bold text-gray-800 mb-6">Import Comandă Nouă</h2>
                  <div class="max-w-md bg-white p-8 rounded-lg shadow-md">
                     <form id="upload-form">
@@ -66,12 +83,17 @@
                     </form>
                  </div>
             </div>
-            
-            <div id="view-produse" class="view-container hidden">
-                </div>
 
-            <div id="view-produs-detaliu" class="view-container hidden">
-                </div>
+            <div id="imprimanta" class="tab-content hidden">
+                 <h2 class="text-3xl font-bold text-gray-800 mb-6">Setări Imprimantă</h2>
+                 <div class="max-w-md bg-white p-8 rounded-lg shadow-md">
+                    <p class="text-gray-600">Aici vor fi opțiunile și setările pentru imprimantă.</p>
+                    <button class="mt-4 text-white bg-gray-600 hover:bg-gray-700 font-medium rounded-lg text-sm px-5 py-2.5">
+                        Configurează Imprimanta
+                    </button>
+                 </div>
+            </div>
+
         </main>
     </div>
 

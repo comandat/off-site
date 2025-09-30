@@ -47,9 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('Eroare în procesul de login:', error);
-            if (!errorMessage.textContent) {
-                errorMessage.textContent = 'Eroare la conectare.';
-            }
+            if (!errorMessage.textContent) errorMessage.textContent = 'Eroare la conectare.';
         } finally {
             loginButton.disabled = false;
             buttonText.classList.remove('hidden');

@@ -3,7 +3,9 @@
 // --- CONFIGURARE WEBHOOKS ---
 const DATA_FETCH_URL = 'https://automatizare.comandat.ro/webhook/5a447557-8d52-463e-8a26-5902ccee8177';
 const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/39e78a55-36c9-4948-aa2d-d9301c996562';
-const PRODUCT_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/INLOCUIESTE_CU_URL_SALVARE'; 
+// --- START MODIFICARE: URL nou pentru update ---
+const PRODUCT_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/eecb8515-6092-47b0-af12-f10fb23407fa'; 
+// --- FINAL MODIFICARE ---
 
 // --- MANAGEMENT STARE APLICAȚIE ---
 export const AppState = {
@@ -43,11 +45,7 @@ export async function fetchProductDetailsInBulk(asins) {
         const response = await fetch(PRODUCT_DETAILS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asins: asinsToFetch }) });
         if (!response.ok) throw new Error(`Eroare la preluarea detaliilor`);
         const responseData = await response.json();
-        
-        // --- AICI ESTE CORECȚIA FINALĂ ---
-        // Am eliminat '[0]' deoarece răspunsul este un obiect direct, nu un array.
         const bulkData = responseData?.get_product_details_dynamically?.products || {};
-
         asinsToFetch.forEach(asin => {
             const productData = bulkData[asin] || { title: 'N/A', images: [], description: '', features: {}, brand: '', price: '', category: '', categoryId: null, other_versions: {} };
             AppState.setProductDetails(asin, productData);
@@ -60,17 +58,29 @@ export async function fetchProductDetailsInBulk(asins) {
     return results;
 }
 
+// --- START MODIFICARE: Funcția de salvare ---
 export async function saveProductDetails(commandId, productId, updatedData) {
-    if (PRODUCT_UPDATE_URL.includes('INLOCUIESTE_CU_URL_SALVARE')) {
-        alert("Te rog configurează URL-ul pentru webhook-ul de salvare în scripts/data.js");
-        return false;
-    }
-    const payload = { commandId, productId, ...updatedData };
+    const payload = { 
+        commandId, 
+        productId, 
+        updatedData // Acesta va conține toate versiunile (Origin, BG, DE, etc.)
+    };
     try {
-        const response = await fetch(PRODUCT_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!response.ok) { console.error(`Salvarea a eșuat:`, await response.text()); return false; }
-        const details = AppState.getProductDetails(updatedData.asin);
-        if (details) { Object.assign(details, updatedData); AppState.setProductDetails(updatedData.asin, details); }
+        const response = await fetch(PRODUCT_UPDATE_URL, { 
+            method: 'PATCH', // Metoda schimbată în PATCH
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(payload) 
+        });
+        if (!response.ok) { 
+            console.error(`Salvarea a eșuat:`, await response.text()); 
+            return false; 
+        }
+        // Actualizăm cache-ul local cu noile date complete
+        AppState.setProductDetails(updatedData.asin, updatedData);
         return true;
-    } catch (error) { console.error('Eroare de rețea la salvare:', error); return false; }
+    } catch (error) { 
+        console.error('Eroare de rețea la salvare:', error); 
+        return false; 
+    }
 }
+// --- FINAL MODIFICARE ---

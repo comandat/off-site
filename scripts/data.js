@@ -2,7 +2,8 @@
 
 // --- CONFIGURARE WEBHOOKS ---
 const DATA_FETCH_URL = 'https://automatizare.comandat.ro/webhook/5a447557-8d52-463e-8a26-5902ccee8177';
-const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/f1bb3c1c-3730-4672-b989-b3e73b911043';
+// MODIFICARE: Am schimbat URL-ul pentru detalii produs
+const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/39e78a55-36c9-4948-aa2d-d9301c996562';
 const PRODUCT_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/INLOCUIESTE_CU_URL_SALVARE'; 
 
 // --- MANAGEMENT STARE APLICAȚIE ---
@@ -13,6 +14,7 @@ export const AppState = {
     setProductDetails: (asin, data) => sessionStorage.setItem(`product_${asin}`, JSON.stringify(data)),
 };
 
+// ... (restul funcțiilor processServerData și fetchDataAndSyncState rămân la fel) ...
 function processServerData(data) {
     if (!data) return [];
     return Object.keys(data).map(commandId => ({
@@ -48,6 +50,7 @@ export async function fetchDataAndSyncState() {
     }
 }
 
+
 export async function fetchProductDetailsInBulk(asins) {
     const results = {};
     const asinsToFetch = [];
@@ -66,22 +69,22 @@ export async function fetchProductDetailsInBulk(asins) {
         });
         if (!response.ok) throw new Error(`Eroare la preluarea detaliilor`);
         const responseData = await response.json();
-        const bulkData = responseData.products || responseData;
+        // Aici ne așteptăm ca răspunsul să fie direct obiectul "products"
+        const bulkData = responseData.products || responseData; 
         asinsToFetch.forEach(asin => {
-            const productData = bulkData[asin] || { title: 'N/A', images: [], description: '', features: [], brand: '', price: '', category: '' };
+            const productData = bulkData[asin] || { title: 'N/A', images: [], description: '', features: {}, brand: '', price: '', category: '', other_versions: {} };
             AppState.setProductDetails(asin, productData);
             results[asin] = productData;
         });
     } catch (error) {
-        console.error('Eroare la preluarea detaliilor:', error);
+        console.error('Eroare la preluarea detaliilor produselor:', error);
         asinsToFetch.forEach(asin => {
-            results[asin] = { title: 'Eroare', images: [], description: '', features: [], brand: '', price: '', category: '' };
+            results[asin] = { title: 'Eroare', images: [], description: '', features: {}, brand: '', price: '', category: '', other_versions: {} };
         });
     }
     return results;
 }
 
-// Funcție de salvare actualizată pentru a trimite toate datele
 export async function saveProductDetails(commandId, productId, updatedData) {
     if (PRODUCT_UPDATE_URL.includes('INLOCUIESTE_CU_URL_SALVARE')) {
         alert("Te rog configurează URL-ul pentru webhook-ul de salvare în scripts/data.js");
@@ -98,10 +101,9 @@ export async function saveProductDetails(commandId, productId, updatedData) {
             console.error(`Salvarea a eșuat:`, await response.text());
             return false;
         }
-        // Actualizează datele locale după o salvare reușită
         const details = AppState.getProductDetails(updatedData.asin);
         if (details) {
-            Object.assign(details, updatedData); // Suprascrie detaliile locale cu cele noi
+            Object.assign(details, updatedData);
             AppState.setProductDetails(updatedData.asin, details);
         }
         return true;

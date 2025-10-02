@@ -44,13 +44,9 @@ export async function fetchProductDetailsInBulk(asins) {
         if (!response.ok) throw new Error(`Eroare la preluarea detaliilor`);
         const responseData = await response.json();
         
-        // --- ADAUGARE: Afișează în consolă răspunsul de la webhook ---
-        console.log("Răspuns primit de la Webhook:", JSON.stringify(responseData, null, 2));
-        
-        // --- AICI ESTE CORECȚIA ---
-        // Răspunsul de la n8n este un array, iar funcția Postgres împachetează totul.
-        // Trebuie să despachetăm corect pentru a ajunge la obiectul cu produse.
-        const bulkData = responseData[0]?.get_product_details_dynamically?.products || {};
+        // --- AICI ESTE CORECȚIA FINALĂ ---
+        // Am eliminat '[0]' deoarece răspunsul este un obiect direct, nu un array.
+        const bulkData = responseData?.get_product_details_dynamically?.products || {};
 
         asinsToFetch.forEach(asin => {
             const productData = bulkData[asin] || { title: 'N/A', images: [], description: '', features: {}, brand: '', price: '', category: '', categoryId: null, other_versions: {} };

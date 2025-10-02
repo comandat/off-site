@@ -2,7 +2,6 @@
 
 // --- CONFIGURARE WEBHOOKS ---
 const DATA_FETCH_URL = 'https://automatizare.comandat.ro/webhook/5a447557-8d52-463e-8a26-5902ccee8177';
-// MODIFICARE: Am schimbat URL-ul pentru detalii produs
 const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/39e78a55-36c9-4948-aa2d-d9301c996562';
 const PRODUCT_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/INLOCUIESTE_CU_URL_SALVARE'; 
 
@@ -14,18 +13,12 @@ export const AppState = {
     setProductDetails: (asin, data) => sessionStorage.setItem(`product_${asin}`, JSON.stringify(data)),
 };
 
-// ... (restul funcțiilor processServerData și fetchDataAndSyncState rămân la fel) ...
 function processServerData(data) {
     if (!data) return [];
     return Object.keys(data).map(commandId => ({
         id: commandId,
         name: `Comanda #${commandId.substring(0, 12)}`,
-        products: (data[commandId] || []).map(p => ({
-            id: p.productsku,
-            asin: p.asin,
-            expected: p.orderedquantity || 0,
-            found: (p.bncondition || 0) + (p.vgcondition || 0) + (p.gcondition || 0) + (p.broken || 0),
-        }))
+        products: (data[commandId] || []).map(p => ({ id: p.productsku, asin: p.asin, expected: p.orderedquantity || 0, found: (p.bncondition || 0) + (p.vgcondition || 0) + (p.gcondition || 0) + (p.broken || 0) }))
     }));
 }
 
@@ -33,54 +26,37 @@ export async function fetchDataAndSyncState() {
     const accessCode = sessionStorage.getItem('lastAccessCode');
     if (!accessCode) return false;
     try {
-        const response = await fetch(DATA_FETCH_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ code: accessCode }),
-            cache: 'no-store'
-        });
+        const response = await fetch(DATA_FETCH_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ code: accessCode }), cache: 'no-store' });
         if (!response.ok) throw new Error(`Eroare de rețea: ${response.status}`);
         const responseData = await response.json();
         if (responseData.status !== 'success' || !responseData.data) throw new Error('Răspuns invalid de la server');
         AppState.setCommands(processServerData(responseData.data));
         return true;
-    } catch (error) {
-        console.error('Sincronizarea datelor a eșuat:', error);
-        return false;
-    }
+    } catch (error) { console.error('Sincronizarea datelor a eșuat:', error); return false; }
 }
 
-
 export async function fetchProductDetailsInBulk(asins) {
-    const results = {};
-    const asinsToFetch = [];
-    asins.forEach(asin => {
-        const cachedData = AppState.getProductDetails(asin);
-        if (cachedData) results[asin] = cachedData;
-        else asinsToFetch.push(asin);
-    });
+    const results = {}, asinsToFetch = [];
+    asins.forEach(asin => { const cachedData = AppState.getProductDetails(asin); if (cachedData) results[asin] = cachedData; else asinsToFetch.push(asin); });
     if (asinsToFetch.length === 0) return results;
-
     try {
-        const response = await fetch(PRODUCT_DETAILS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ asins: asinsToFetch }),
-        });
+        const response = await fetch(PRODUCT_DETAILS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asins: asinsToFetch }) });
         if (!response.ok) throw new Error(`Eroare la preluarea detaliilor`);
         const responseData = await response.json();
-        // Aici ne așteptăm ca răspunsul să fie direct obiectul "products"
-        const bulkData = responseData.products || responseData; 
+        
+        // --- AICI ESTE CORECȚIA ---
+        // Răspunsul de la n8n este un array, iar funcția Postgres împachetează totul.
+        // Trebuie să despachetăm corect pentru a ajunge la obiectul cu produse.
+        const bulkData = responseData[0]?.get_product_details_dynamically?.products || {};
+
         asinsToFetch.forEach(asin => {
-            const productData = bulkData[asin] || { title: 'N/A', images: [], description: '', features: {}, brand: '', price: '', category: '', other_versions: {} };
+            const productData = bulkData[asin] || { title: 'N/A', images: [], description: '', features: {}, brand: '', price: '', category: '', categoryId: null, other_versions: {} };
             AppState.setProductDetails(asin, productData);
             results[asin] = productData;
         });
     } catch (error) {
         console.error('Eroare la preluarea detaliilor produselor:', error);
-        asinsToFetch.forEach(asin => {
-            results[asin] = { title: 'Eroare', images: [], description: '', features: {}, brand: '', price: '', category: '', other_versions: {} };
-        });
+        asinsToFetch.forEach(asin => { results[asin] = { title: 'Eroare', images: [], description: '', features: {}, brand: '', price: '', category: '', categoryId: null, other_versions: {} }; });
     }
     return results;
 }
@@ -92,23 +68,10 @@ export async function saveProductDetails(commandId, productId, updatedData) {
     }
     const payload = { commandId, productId, ...updatedData };
     try {
-        const response = await fetch(PRODUCT_UPDATE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-            console.error(`Salvarea a eșuat:`, await response.text());
-            return false;
-        }
+        const response = await fetch(PRODUCT_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!response.ok) { console.error(`Salvarea a eșuat:`, await response.text()); return false; }
         const details = AppState.getProductDetails(updatedData.asin);
-        if (details) {
-            Object.assign(details, updatedData);
-            AppState.setProductDetails(updatedData.asin, details);
-        }
+        if (details) { Object.assign(details, updatedData); AppState.setProductDetails(updatedData.asin, details); }
         return true;
-    } catch (error) {
-        console.error('Eroare de rețea la salvare:', error);
-        return false;
-    }
+    } catch (error) { console.error('Eroare de rețea la salvare:', error); return false; }
 }

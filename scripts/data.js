@@ -3,9 +3,7 @@
 // --- CONFIGURARE WEBHOOKS ---
 const DATA_FETCH_URL = 'https://automatizare.comandat.ro/webhook/5a447557-8d52-463e-8a26-5902ccee8177';
 const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/39e78a55-36c9-4948-aa2d-d9301c996562';
-// --- START MODIFICARE: URL nou pentru update ---
 const PRODUCT_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/eecb8515-6092-47b0-af12-f10fb23407fa'; 
-// --- FINAL MODIFICARE ---
 
 // --- MANAGEMENT STARE APLICAȚIE ---
 export const AppState = {
@@ -58,16 +56,14 @@ export async function fetchProductDetailsInBulk(asins) {
     return results;
 }
 
-// --- START MODIFICARE: Funcția de salvare ---
-export async function saveProductDetails(commandId, productId, updatedData) {
+export async function saveProductDetails(productId, updatedData) {
     const payload = { 
-        commandId, 
         productId, 
-        updatedData // Acesta va conține toate versiunile (Origin, BG, DE, etc.)
+        updatedData
     };
     try {
         const response = await fetch(PRODUCT_UPDATE_URL, { 
-            method: 'PATCH', // Metoda schimbată în PATCH
+            method: 'PATCH',
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify(payload) 
         });
@@ -75,7 +71,6 @@ export async function saveProductDetails(commandId, productId, updatedData) {
             console.error(`Salvarea a eșuat:`, await response.text()); 
             return false; 
         }
-        // Actualizăm cache-ul local cu noile date complete
         AppState.setProductDetails(updatedData.asin, updatedData);
         return true;
     } catch (error) { 
@@ -83,4 +78,3 @@ export async function saveProductDetails(commandId, productId, updatedData) {
         return false; 
     }
 }
-// --- FINAL MODIFICARE ---

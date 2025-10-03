@@ -35,6 +35,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center"><button data-action="back-to-comenzi" class="mr-4 p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button><h1 class="text-xl font-bold text-gray-800">${command.name}</h1></header><div class="p-4 space-y-2">${productsHTML}</div>`;
         },
         produsDetaliu: (product, details) => {
+            const languages = {
+                'bg': 'Bulgarian', 'de': 'German', 'ro': 'Romanian', 'hu': 'Hungarian',
+                'el': 'Greek', 'sq': 'Albanian', 'be': 'Belarusian', 'bs': 'Bosnian',
+                'ca': 'Catalan', 'hr': 'Croatian', 'cs': 'Czech', 'da': 'Danish',
+                'nl': 'Dutch', 'en': 'English', 'et': 'Estonian', 'fi': 'Finnish',
+                'fr': 'French', 'ga': 'Irish', 'it': 'Italian', 'lv': 'Latvian',
+                'lt': 'Lithuanian', 'lb': 'Luxembourgish', 'mk': 'Macedonian', 'mt': 'Maltese',
+                'mo': 'Moldovan', 'no': 'Norwegian', 'pl': 'Polish', 'pt': 'Portuguese',
+                'ru': 'Russian', 'sr': 'Serbian', 'sk': 'Slovak', 'sl': 'Slovenian',
+                'es': 'Spanish', 'sv': 'Swedish', 'tr': 'Turkish', 'uk': 'Ukrainian', 'cy': 'Welsh'
+            };
+            const languageButtons = Object.entries(languages).map(([code, name]) =>
+                `<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 language-option" data-lang-code="${code}">${name} (${code.toUpperCase()})</a>`
+            ).join('');
+
             const otherVersions = details.other_versions || {};
             const versionsButtons = Object.keys(otherVersions).map(key => `<button data-version-key="${key}" class="px-4 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md version-btn">${key.toUpperCase()}</button>`).join('');
             const featuresHTML = Object.entries(details.features || {}).map(([name, value]) => `<div class="flex items-center gap-4 feature-row"><input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button></div>`).join('');
@@ -43,7 +58,19 @@ document.addEventListener('DOMContentLoaded', () => {
             <header class="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white sticky top-0 z-10">
                 <div class="flex items-center space-x-4"><button data-action="back-to-produse" class="text-gray-600"><span class="material-icons">arrow_back</span></button><h2 class="text-lg font-semibold">Detalii Produs</h2></div>
                 <div class="flex items-center space-x-4">
-                    <div class="relative group"><button class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"><span class="material-icons text-base">translate</span><span class="text-sm">Traduceți</span><span class="material-icons text-base">expand_more</span></button><div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl hidden group-focus-within:block focus:block z-20 border border-gray-200"><a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Bulgară (BG)</a><a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Germană (DE)</a><a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Greacă (EL)</a><a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Engleză (EN)</a></div></div>
+                    <div class="relative group dropdown">
+                        <button class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors dropdown-toggle">
+                            <span class="material-icons text-base">translate</span>
+                            <span class="text-sm">Traduceți</span>
+                            <span class="material-icons text-base">expand_more</span>
+                        </button>
+                        <div class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl hidden dropdown-menu z-20 border border-gray-200">
+                            <input type="text" id="language-search" placeholder="Caută o limbă..." class="w-full px-4 py-2 border-b border-gray-200 focus:outline-none">
+                            <div id="language-list" class="max-h-60 overflow-y-auto">
+                                ${languageButtons}
+                            </div>
+                        </div>
+                    </div>
                     <button data-action="save-product" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Salvează Modificările</button>
                 </div>
             </header>
@@ -143,6 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const productCard = target.closest('[data-product-id]');
         const actionButton = target.closest('[data-action]');
         const versionButton = target.closest('.version-btn');
+        const languageOption = target.closest('.language-option');
+        const dropdownToggle = target.closest('.dropdown-toggle');
 
         if (commandCard) {
             state.currentCommandId = commandCard.dataset.commandId;
@@ -173,7 +202,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.editedProductData.price = document.getElementById('product-price').value;
                 state.editedProductData.category = document.getElementById('product-category').value;
                 
-                // Am scos commandId de aici
                 const success = await saveProductDetails(state.currentProductId, state.editedProductData);
                 
                 if (success) { 
@@ -185,6 +213,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     actionButton.disabled = false;
                 }
             }
+        } else if (languageOption) {
+            event.preventDefault();
+            const langCode = languageOption.dataset.langCode;
+            const asin = document.getElementById('product-asin').value;
+            const webhookUrl = 'https://automatizare.comandat.ro/webhook/43760233-f351-44ea-8966-6f470e063ae7';
+
+            try {
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asin: asin, language: langCode })
+                });
+                if (response.ok) {
+                    alert(`Traducere pentru ${langCode.toUpperCase()} a fost inițiată.`);
+                } else {
+                    alert('Eroare la inițierea traducerii.');
+                }
+            } catch (error) {
+                console.error('Eroare Webhook:', error);
+                alert('Eroare de rețea la inițierea traducerii.');
+            }
+        }
+
+        if (dropdownToggle) {
+            const dropdownMenu = dropdownToggle.nextElementSibling;
+            dropdownMenu.classList.toggle('hidden');
+        } else if (!target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.add('hidden'));
+        }
+    });
+
+    mainContent.addEventListener('input', (event) => {
+        if (event.target.id === 'language-search') {
+            const filter = event.target.value.toLowerCase();
+            const links = document.querySelectorAll('#language-list .language-option');
+            links.forEach(link => {
+                const text = link.textContent.toLowerCase();
+                link.style.display = text.includes(filter) ? '' : 'none';
+            });
         }
     });
     

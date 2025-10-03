@@ -2,26 +2,22 @@
 import { AppState, fetchDataAndSyncState, fetchProductDetailsInBulk, saveProductDetails } from './data.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- ELEMENTE DIN DOM & CONSTANTE ---
     const mainContent = document.getElementById('main-content');
     const sidebarButtons = document.querySelectorAll('.sidebar-btn');
     const N8N_UPLOAD_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/d92efbca-eaf1-430e-8748-cc6466c82c6e';
 
-    // --- STAREA APLICAȚIEI ---
     const state = {
         currentCommandId: null,
         currentProductId: null,
-        editedProductData: {}, // Va stoca toate modificările pentru produsul curent
-        activeVersionKey: 'origin' // Tab-ul activ curent
+        editedProductData: {},
+        activeVersionKey: 'origin'
     };
 
-    // --- NAVIGARE ȘI AFIȘARE VIEW-URI ---
     function setActiveView(viewId) {
         sidebarButtons.forEach(btn => btn.classList.toggle('active-tab', btn.dataset.view === viewId));
         mainContent.scrollTop = 0;
     }
 
-    // --- TEMPLATES HTML PENTRU FIECARE VIEW ---
     const templates = {
         comenzi: () => {
             const commands = AppState.getCommands();
@@ -32,69 +28,29 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         import: () => `<div class="p-6 sm:p-8"><h2 class="text-3xl font-bold text-gray-800 mb-6">Import Comandă Nouă</h2><div class="max-w-md bg-white p-8 rounded-lg shadow-md"><form id="upload-form"><div class="mb-5"><label for="zip-file" class="block mb-2 text-sm font-medium">Manifest (.zip):</label><input type="file" id="zip-file" name="zipFile" accept=".zip" required class="w-full text-sm border-gray-300 rounded-lg cursor-pointer bg-gray-50"></div><div class="mb-6"><label for="pdf-file" class="block mb-2 text-sm font-medium">Factura (.pdf):</label><input type="file" id="pdf-file" name="pdfFile" accept=".pdf" required class="w-full text-sm border-gray-300 rounded-lg cursor-pointer bg-gray-50"></div><p id="upload-status" class="mt-4 text-center text-sm font-medium min-h-[20px]"></p><button id="upload-button" type="submit" class="w-full mt-2 flex justify-center items-center px-4 py-3 text-lg font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300"><span class="button-text">Trimite fișierele 🚀</span><div class="button-loader hidden w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div></button></form></div></div>`,
         produse: (command, details) => {
-            const productsHTML = command.products.map(p => {
+             const productsHTML = command.products.map(p => {
                 const d = details[p.asin];
-                return `
-                    <div class="flex items-center gap-4 bg-white p-3 rounded-md shadow-sm cursor-pointer hover:bg-gray-50" data-product-id="${p.id}">
-                        <img src="${d?.images?.[0] || ''}" class="w-16 h-16 object-cover rounded-md bg-gray-200">
-                        <div class="flex-1">
-                            <p class="font-semibold line-clamp-2">${d?.title || 'N/A'}</p>
-                            <p class="text-sm text-gray-500">${p.asin}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="font-bold text-lg">${p.found}/${p.expected}</p>
-                        </div>
-                        <span class="material-icons text-gray-400">chevron_right</span>
-                    </div>`;
+                return `<div class="flex items-center gap-4 bg-white p-3 rounded-md shadow-sm cursor-pointer hover:bg-gray-50" data-product-id="${p.id}"><img src="${d?.images?.[0] || ''}" class="w-16 h-16 object-cover rounded-md bg-gray-200"><div class="flex-1"><p class="font-semibold line-clamp-2">${d?.title || 'N/A'}</p><p class="text-sm text-gray-500">${p.asin}</p></div><div class="text-right"><p class="font-bold text-lg">${p.found}/${p.expected}</p></div><span class="material-icons text-gray-400">chevron_right</span></div>`;
             }).join('');
             return `<header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center"><button data-action="back-to-comenzi" class="mr-4 p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button><h1 class="text-xl font-bold text-gray-800">${command.name}</h1></header><div class="p-4 space-y-2">${productsHTML}</div>`;
         },
         produsDetaliu: (product, details) => {
             const otherVersions = details.other_versions || {};
-            const versionsButtons = Object.keys(otherVersions).map(key =>
-                `<button data-version-key="${key}" class="px-4 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md version-btn">${key.toUpperCase()}</button>`
-            ).join('');
-            const featuresHTML = Object.entries(details.features || {}).map(([name, value]) => `
-                <div class="flex items-center gap-4 feature-row">
-                    <input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}">
-                    <input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}">
-                    <button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button>
-                </div>
-            `).join('');
-            const thumbnailsHTML = (details.images || []).slice(0, 4).map((img, index) =>
-                `<img src="${img}" class="w-full h-auto object-cover rounded-md cursor-pointer ${index === 0 ? 'border-2 border-blue-600' : ''}" data-thumb-index="${index}">`
-            ).join('');
-
+            const versionsButtons = Object.keys(otherVersions).map(key => `<button data-version-key="${key}" class="px-4 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md version-btn">${key.toUpperCase()}</button>`).join('');
+            const featuresHTML = Object.entries(details.features || {}).map(([name, value]) => `<div class="flex items-center gap-4 feature-row"><input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button></div>`).join('');
+            const thumbnailsHTML = (details.images || []).slice(0, 4).map((img, index) => `<img src="${img}" class="w-full h-auto object-cover rounded-md cursor-pointer ${index === 0 ? 'border-2 border-blue-600' : ''}" data-thumb-index="${index}">`).join('');
             return `
             <header class="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white sticky top-0 z-10">
+                <div class="flex items-center space-x-4"><button data-action="back-to-produse" class="text-gray-600"><span class="material-icons">arrow_back</span></button><h2 class="text-lg font-semibold">Detalii Produs</h2></div>
                 <div class="flex items-center space-x-4">
-                    <button data-action="back-to-produse" class="text-gray-600"><span class="material-icons">arrow_back</span></button>
-                    <h2 class="text-lg font-semibold">Detalii Produs</h2>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <div class="relative group">
-                        <button class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-                            <span class="material-icons text-base">translate</span>
-                            <span class="text-sm">Traduceți</span>
-                            <span class="material-icons text-base">expand_more</span>
-                        </button>
-                        <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl hidden group-focus-within:block focus:block z-20 border border-gray-200">
-                            <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Bulgară (BG)</a>
-                            <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Germană (DE)</a>
-                            <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Greacă (EL)</a>
-                            <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Engleză (EN)</a>
-                        </div>
-                    </div>
+                    <div class="relative group"><button class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"><span class="material-icons text-base">translate</span><span class="text-sm">Traduceți</span><span class="material-icons text-base">expand_more</span></button><div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl hidden group-focus-within:block focus:block z-20 border border-gray-200"><a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Bulgară (BG)</a><a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Germană (DE)</a><a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Greacă (EL)</a><a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="#">Engleză (EN)</a></div></div>
                     <button data-action="save-product" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Salvează Modificările</button>
                 </div>
             </header>
             <div class="p-6 lg:p-8 flex-1">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div class="lg:col-span-1 space-y-6">
-                        <div class="bg-white p-4 rounded-xl shadow-sm">
-                            <img id="main-image" alt="Imaginea principală" class="w-full h-auto object-cover rounded-lg" src="${details.images?.[0] || ''}">
-                            <div id="thumbnails-container" class="grid grid-cols-4 gap-2 mt-4">${thumbnailsHTML}</div>
-                        </div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm"><img id="main-image" alt="Imaginea principală" class="w-full h-auto object-cover rounded-lg" src="${details.images?.[0] || ''}"><div id="thumbnails-container" class="grid grid-cols-4 gap-2 mt-4">${thumbnailsHTML}</div></div>
                         <div class="bg-white p-4 rounded-xl shadow-sm space-y-4">
                             <div><label class="text-sm font-medium text-gray-500">Brand</label><input id="product-brand" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${details.brand || ''}"></div>
                             <div><label class="text-sm font-medium text-gray-500">Preț estimat</label><input id="product-price" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${details.price || ''}"></div>
@@ -103,21 +59,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                     <div class="lg:col-span-2 bg-white rounded-xl shadow-sm">
-                         <div class="flex items-center justify-between p-4 border-b border-gray-200">
-                            <div id="version-selector" class="flex space-x-1 border rounded-lg p-1">
-                                <button data-version-key="origin" class="px-4 py-1.5 text-sm font-semibold rounded-md bg-blue-600 text-white version-btn">Origin</button>
-                                ${versionsButtons}
-                            </div>
-                         </div>
+                         <div class="flex items-center justify-between p-4 border-b border-gray-200"><div id="version-selector" class="flex space-x-1 border rounded-lg p-1"><button data-version-key="origin" class="px-4 py-1.5 text-sm font-semibold rounded-md bg-blue-600 text-white version-btn">Origin</button>${versionsButtons}</div></div>
                          <div class="p-6 space-y-6">
                             <div><label for="product-title" class="text-sm font-medium text-gray-500">Titlu</label><input id="product-title" class="mt-1 block w-full text-xl font-semibold bg-transparent p-0 border-0 border-b-2" type="text" value="${details.title || ''}"></div>
                             <div><label for="product-description" class="text-sm font-medium text-gray-500">Descriere</label><textarea id="product-description" rows="8" class="mt-1 block w-full bg-gray-50 border rounded-lg p-3">${details.description || ''}</textarea></div>
                             <div>
-                                <h3 class="text-sm font-medium text-gray-500">Caracteristici</h3>
-                                <div id="features-container" class="mt-2 space-y-3">${featuresHTML}</div>
-                                <button data-action="add-feature" class="flex items-center space-x-2 text-sm text-blue-600 font-medium mt-3">
-                                    <span class="material-icons">add_circle_outline</span><span>Adaugă caracteristică</span>
-                                </button>
+                                <h3 class="text-sm font-medium text-gray-500">Caracteristici</h3><div id="features-container" class="mt-2 space-y-3">${featuresHTML}</div>
+                                <button data-action="add-feature" class="flex items-center space-x-2 text-sm text-blue-600 font-medium mt-3"><span class="material-icons">add_circle_outline</span><span>Adaugă caracteristică</span></button>
                             </div>
                         </div>
                     </div>
@@ -149,22 +97,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadTabData(versionKey) {
         let dataToLoad = {};
-        if (versionKey === 'origin') {
-            dataToLoad = state.editedProductData;
-        } else {
-            dataToLoad = state.editedProductData.other_versions?.[versionKey] || {};
-        }
-
+        if (versionKey === 'origin') { dataToLoad = state.editedProductData; } 
+        else { dataToLoad = state.editedProductData.other_versions?.[versionKey] || {}; }
         document.getElementById('product-title').value = dataToLoad.title || '';
         document.getElementById('product-description').value = dataToLoad.description || '';
         const featuresContainer = document.getElementById('features-container');
-        featuresContainer.innerHTML = Object.entries(dataToLoad.features || {}).map(([name, value]) => `
-            <div class="flex items-center gap-4 feature-row">
-                <input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}">
-                <input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}">
-                <button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button>
-            </div>`).join('');
-
+        featuresContainer.innerHTML = Object.entries(dataToLoad.features || {}).map(([name, value]) => `<div class="flex items-center gap-4 feature-row"><input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button></div>`).join('');
         state.activeVersionKey = versionKey;
         document.querySelectorAll('.version-btn').forEach(btn => btn.classList.toggle('bg-blue-600', btn.dataset.versionKey === versionKey));
         document.querySelectorAll('.version-btn').forEach(btn => btn.classList.toggle('text-white', btn.dataset.versionKey === versionKey));
@@ -226,20 +164,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 newFeature.innerHTML = `<input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" placeholder="Nume"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" placeholder="Valoare"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button>`;
                 container.appendChild(newFeature);
             }
-            if (action === 'delete-feature') {
-                target.closest('.feature-row').remove();
-            }
+            if (action === 'delete-feature') { target.closest('.feature-row').remove(); }
             if (action === 'save-product') {
                 actionButton.textContent = 'Se salvează...';
                 actionButton.disabled = true;
-                
                 saveCurrentTabData();
-
                 state.editedProductData.brand = document.getElementById('product-brand').value;
                 state.editedProductData.price = document.getElementById('product-price').value;
                 state.editedProductData.category = document.getElementById('product-category').value;
                 
-                const success = await saveProductDetails(state.currentCommandId, state.currentProductId, state.editedProductData);
+                // Am scos commandId de aici
+                const success = await saveProductDetails(state.currentProductId, state.editedProductData);
                 
                 if (success) { 
                     alert('Salvat cu succes!');
@@ -269,6 +204,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- INIȚIALIZARE APLICAȚIE ---
     renderView('comenzi');
 });

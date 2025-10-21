@@ -58,7 +58,7 @@ export async function fetchProductDetailsInBulk(asins) {
 
 export async function saveProductDetails(productId, updatedData) {
     const payload = { 
-        productId, 
+        asin, 
         updatedData
     };
     try {

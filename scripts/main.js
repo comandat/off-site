@@ -202,7 +202,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.editedProductData.price = document.getElementById('product-price').value;
                 state.editedProductData.category = document.getElementById('product-category').value;
                 
-                const success = await saveProductDetails(state.currentProductId, state.editedProductData);
+                const asin = document.getElementById('product-asin').value;
+                const success = await saveProductDetails(asin, state.editedProductData);
                 
                 if (success) { 
                     alert('Salvat cu succes!');

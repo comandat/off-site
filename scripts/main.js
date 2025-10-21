@@ -199,7 +199,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionButton.disabled = true;
                 saveCurrentTabData();
                 state.editedProductData.brand = document.getElementById('product-brand').value;
-                state.editedProductData.price = document.getElementById('product-price').value;
+                const priceValue = document.getElementById('product-price').value;
+                state.editedProductData.price = priceValue.trim() === '' ? null : priceValue;
                 state.editedProductData.category = document.getElementById('product-category').value;
                 
                 const asin = document.getElementById('product-asin').value;

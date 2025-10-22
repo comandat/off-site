@@ -89,7 +89,7 @@ export async function saveProductDetails(asin, updatedData) {
             console.error(`Salvarea a eșuat:`, await response.text()); 
             return false; 
         }
-        AppState.setProductDetails(updatedData.asin, updatedData);
+        AppState.setProductDetails(asin, updatedData);
         return true;
     } catch (error) { 
         console.error('Eroare de rețea la salvare:', error); 

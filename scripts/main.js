@@ -108,9 +108,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 `<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 language-option" data-lang-code="${code}">${code.toUpperCase()}</a>`
             ).join('');
 
+            // ...
+            
+            // --- MODIFICARE ÎNCEPUT ---
+            // Definim o hartă pentru a transforma cheile în textul dorit
+            const versionKeyToDisplay = {
+                'romanian': 'RO'
+                // Puteți adăuga și altele, de ex: 'bulgarian': 'BG'
+            };
+
             const otherVersions = details.other_versions || {};
-            const versionsButtons = Object.keys(otherVersions).map(key => `<button data-version-key="${key}" class="px-4 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md version-btn">${key.toUpperCase()}</button>`).join('');
-            const featuresHTML = Object.entries(details.features || {}).map(([name, value]) => `<div class="flex items-center gap-4 feature-row"><input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button></div>`).join('');
+            const versionsButtons = Object.keys(otherVersions).map(key => {
+                // Folosim cheia din hartă (ex: 'RO') sau, dacă nu există, folosim cheia originală
+                const displayText = versionKeyToDisplay[key.toLowerCase()] || key.toUpperCase();
+                return `<button data-version-key="${key}" class="px-4 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md version-btn">${displayText}</button>`;
+            }).join('');
+            // --- MODIFICARE SFÂRȘIT ---
+
+            const featuresHTML = Object.entries(details.features || {}).map(([name, value]) => 
+            // ...
             const thumbnailsHTML = (details.images || []).slice(0, 4).map((img, index) => `<img src="${img}" class="w-full h-auto object-cover rounded-md cursor-pointer ${index === 0 ? 'border-2 border-blue-600' : ''}" data-thumb-index="${index}">`).join('');
             return `
             <header class="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white sticky top-0 z-10">

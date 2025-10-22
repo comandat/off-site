@@ -30,7 +30,13 @@ function processServerData(data) {
     return Object.keys(data).map(commandId => ({
         id: commandId,
         name: `Comanda #${commandId.substring(0, 12)}`,
-        products: (data[commandId] || []).map(p => ({ id: p.productsku, asin: p.asin, expected: p.orderedquantity || 0, found: (p.bncondition || 0) + (p.vgcondition || 0) + (p.gcondition || 0) + (p.broken || 0) }))
+        products: (data[commandId] || []).map(p => ({ 
+            id: p.productsku, 
+            asin: p.asin, 
+            expected: p.orderedquantity || 0, 
+            found: (p.bncondition || 0) + (p.vgcondition || 0) + (p.gcondition || 0) + (p.broken || 0),
+            manifestsku: p.manifestsku || null // <-- MODIFICARE: Am adăugat manifestsku
+        }))
     }));
 }
 

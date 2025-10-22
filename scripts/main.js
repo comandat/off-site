@@ -104,7 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 'ru': 'Russian', 'sr': 'Serbian', 'sk': 'Slovak', 'sl': 'Slovenian',
                 'es': 'Spanish', 'sv': 'Swedish', 'tr': 'Turkish', 'uk': 'Ukrainian', 'cy': 'Welsh'
             };
+            // --- ADĂUGAȚI ACEST BLOC NOU ---
+            // Creăm o hartă inversă: {'romanian': 'RO', 'german': 'DE', ...}
+            const languageNameToCodeMap = {};
+            for (const [code, name] of Object.entries(languages)) {
+                languageNameToCodeMap[name.toLowerCase()] = code.toUpperCase();
+            }
+            // --- SFÂRȘITUL BLOCULUI NOU ---
+
             const languageButtons = Object.entries(languages).map(([code, name]) =>
+            // ... (restul codului rămâne neschimbat)
                 `<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 language-option" data-lang-code="${code}">${code.toUpperCase()}</a>`
             ).join('');
 
@@ -118,14 +127,16 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const otherVersions = details.other_versions || {};
+            
+            // --- MODIFICARE AICI ---
             const versionsButtons = Object.keys(otherVersions).map(key => {
-                // Folosim cheia din hartă (ex: 'RO') sau, dacă nu există, folosim cheia originală
-                const displayText = versionKeyToDisplay[key.toLowerCase()] || key.toUpperCase();
+                // Căutăm numele limbii (ex: 'romanian') în harta inversă
+                const displayText = languageNameToCodeMap[key.toLowerCase()] || key.toUpperCase(); // Dacă nu găsește, folosește cheia originală
                 return `<button data-version-key="${key}" class="px-4 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md version-btn">${displayText}</button>`;
             }).join('');
-            // --- MODIFICARE SFÂRȘIT ---
+            // --- SFÂRȘITUL MODIFICĂRII ---
 
-            const featuresHTML = Object.entries(details.features || {}).map(([name, value]) => 
+            const featuresHTML = Object.entries(details.features || {}).map(([name, value]) =>
             // ...
             const thumbnailsHTML = (details.images || []).slice(0, 4).map((img, index) => `<img src="${img}" class="w-full h-auto object-cover rounded-md cursor-pointer ${index === 0 ? 'border-2 border-blue-600' : ''}" data-thumb-index="${index}">`).join('');
             return `

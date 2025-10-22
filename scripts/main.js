@@ -136,8 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
             // --- SFÂRȘITUL MODIFICĂRII ---
 
-            const featuresHTML = Object.entries(details.features || {}).map(([name, value]) =>
-            // ...
+            const featuresHTML = Object.entries(details.features || {}).map(([name, value]) => `<div class="flex items-center gap-4 feature-row"><input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button></div>`).join('');
             const thumbnailsHTML = (details.images || []).slice(0, 4).map((img, index) => `<img src="${img}" class="w-full h-auto object-cover rounded-md cursor-pointer ${index === 0 ? 'border-2 border-blue-600' : ''}" data-thumb-index="${index}">`).join('');
             return `
             <header class="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white sticky top-0 z-10">

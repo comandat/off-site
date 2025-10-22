@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         import: () => `<div class="p-6 sm:p-8"><h2 class="text-3xl font-bold text-gray-800 mb-6">Import Comandă Nouă</h2><div class="max-w-md bg-white p-8 rounded-lg shadow-md"><form id="upload-form"><div class="mb-5"><label for="zip-file" class="block mb-2 text-sm font-medium">Manifest (.zip):</label><input type="file" id="zip-file" name="zipFile" accept=".zip" required class="w-full text-sm border-gray-300 rounded-lg cursor-pointer bg-gray-50"></div><div class="mb-6"><label for="pdf-file" class="block mb-2 text-sm font-medium">Factura (.pdf):</label><input type="file" id="pdf-file" name="pdfFile" accept=".pdf" required class="w-full text-sm border-gray-300 rounded-lg cursor-pointer bg-gray-50"></div><p id="upload-status" class="mt-4 text-center text-sm font-medium min-h-[20px]"></p><button id="upload-button" type="submit" class="w-full mt-2 flex justify-center items-center px-4 py-3 text-lg font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300"><span class="button-text">Trimite fișierele 🚀</span><div class="button-loader hidden w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div></button></form></div></div>`,
         
-        // <-- TEMPLATE NOU: Pentru lista de paleți (ManifestSKU)
+        // <-- TEMPLATE MODIFICAT PENTRU AFIȘARE 1:1 ȘI FLEXIBILĂ
         paleti: (command, details) => {
             const paleti = {};
             
@@ -54,9 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const firstImage = firstProductDetails?.images?.[0] || ''; // Imaginea primului produs
 
                 return `
-                <div class="bg-white p-4 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow" data-manifest-sku="${sku}">
-                    <img src="${firstImage}" alt="Imagine palet" class="w-full h-32 object-cover rounded-md bg-gray-200 mb-4">
-                    <h3 class="font-bold text-gray-800">${sku}</h3>
+                <div class="bg-white p-4 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow w-40 flex flex-col items-center" data-manifest-sku="${sku}">
+                    <img src="${firstImage}" alt="Imagine palet" class="w-32 h-32 object-contain rounded-md bg-gray-200 mb-4">
+                    <h3 class="font-bold text-gray-800 text-center">${sku}</h3>
                     <p class="text-sm text-gray-500">${products.length} produse</p>
                 </div>`;
             }).join('');
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h1 class="text-xl font-bold text-gray-800">Paleți din ${command.name}</h1>
             </header>
             <div class="p-6 sm:p-8">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="flex flex-wrap gap-4">
                     ${paletiHTML}
                 </div>
             </div>`;

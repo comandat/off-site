@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'es': 'Spanish', 'sv': 'Swedish', 'tr': 'Turkish', 'uk': 'Ukrainian', 'cy': 'Welsh'
             };
             const languageButtons = Object.entries(languages).map(([code, name]) =>
-                `<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 language-option" data-lang-code="${code}">${name} (${code.toUpperCase()})</a>`
+                `<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 language-option" data-lang-code="${code}">${code.toUpperCase()}</a>`
             ).join('');
 
             const otherVersions = details.other_versions || {};

@@ -14,6 +14,26 @@ document.addEventListener('DOMContentLoaded', () => {
         activeVersionKey: 'origin'
     };
 
+    // --- MODIFICARE: Hărțile de limbi mutate aici pentru a fi globale ---
+    const languages = {
+        'bg': 'Bulgarian', 'de': 'German', 'ro': 'Romanian', 'hu': 'Hungarian',
+        'el': 'Greek', 'sq': 'Albanian', 'be': 'Belarusian', 'bs': 'Bosnian',
+        'ca': 'Catalan', 'hr': 'Croatian', 'cs': 'Czech', 'da': 'Danish',
+        'nl': 'Dutch', 'en': 'English', 'et': 'Estonian', 'fi': 'Finnish',
+        'fr': 'French', 'ga': 'Irish', 'it': 'Italian', 'lv': 'Latvian',
+        'lt': 'Lithuanian', 'lb': 'Luxembourgish', 'mk': 'Macedonian', 'mt': 'Maltese',
+        'mo': 'Moldovan', 'no': 'Norwegian', 'pl': 'Polish', 'pt': 'Portuguese',
+        'ru': 'Russian', 'sr': 'Serbian', 'sk': 'Slovak', 'sl': 'Slovenian',
+        'es': 'Spanish', 'sv': 'Swedish', 'tr': 'Turkish', 'uk': 'Ukrainian', 'cy': 'Welsh'
+    };
+    // Creăm o hartă inversă: {'romanian': 'RO', 'german': 'DE', ...}
+    const languageNameToCodeMap = {};
+    for (const [code, name] of Object.entries(languages)) {
+        languageNameToCodeMap[name.toLowerCase()] = code.toUpperCase();
+    }
+    // --- SFÂRȘITUL MODIFICĂRII ---
+
+
     function setActiveView(viewId) {
         // MODIFICARE: Păstrează "Comenzi" activ când navigăm în sub-meniuri
         let parentView = viewId;
@@ -92,34 +112,15 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="p-4 space-y-2">${productsHTML}</div>`;
         },
         produsDetaliu: (product, details) => {
-            // ... (restul funcției produsDetaliu rămâne neschimbat)
-            const languages = {
-                'bg': 'Bulgarian', 'de': 'German', 'ro': 'Romanian', 'hu': 'Hungarian',
-                'el': 'Greek', 'sq': 'Albanian', 'be': 'Belarusian', 'bs': 'Bosnian',
-                'ca': 'Catalan', 'hr': 'Croatian', 'cs': 'Czech', 'da': 'Danish',
-                'nl': 'Dutch', 'en': 'English', 'et': 'Estonian', 'fi': 'Finnish',
-                'fr': 'French', 'ga': 'Irish', 'it': 'Italian', 'lv': 'Latvian',
-                'lt': 'Lithuanian', 'lb': 'Luxembourgish', 'mk': 'Macedonian', 'mt': 'Maltese',
-                'mo': 'Moldovan', 'no': 'Norwegian', 'pl': 'Polish', 'pt': 'Portuguese',
-                'ru': 'Russian', 'sr': 'Serbian', 'sk': 'Slovak', 'sl': 'Slovenian',
-                'es': 'Spanish', 'sv': 'Swedish', 'tr': 'Turkish', 'uk': 'Ukrainian', 'cy': 'Welsh'
-            };
-            // --- ADĂUGAȚI ACEST BLOC NOU ---
-            // Creăm o hartă inversă: {'romanian': 'RO', 'german': 'DE', ...}
-            const languageNameToCodeMap = {};
-            for (const [code, name] of Object.entries(languages)) {
-                languageNameToCodeMap[name.toLowerCase()] = code.toUpperCase();
-            }
-            // --- SFÂRȘITUL BLOCULUI NOU ---
+            // --- MODIFICARE: Definițiile 'languages' și 'languageNameToCodeMap' au fost mutate în afara acestei funcții ---
 
             const languageButtons = Object.entries(languages).map(([code, name]) =>
-            // ... (restul codului rămâne neschimbat)
                 `<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 language-option" data-lang-code="${code}">${code.toUpperCase()}</a>`
             ).join('');
 
             const otherVersions = details.other_versions || {};
             
-            // --- MODIFICARE AICI ---
+            // --- MODIFICARE: Folosim 'languageNameToCodeMap' global ---
             const versionsButtons = Object.keys(otherVersions).map(key => {
                 // Căutăm numele limbii (ex: 'romanian') în harta inversă
                 const displayText = languageNameToCodeMap[key.toLowerCase()] || key.toUpperCase(); // Dacă nu găsește, folosește cheia originală
@@ -127,7 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
             // --- SFÂRȘITUL MODIFICĂRII ---
 
+            // --- MODIFICARE: Linia 'featuresHTML' a fost corectată ---
             const featuresHTML = Object.entries(details.features || {}).map(([name, value]) => `<div class="flex items-center gap-4 feature-row"><input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button></div>`).join('');
+            
             const thumbnailsHTML = (details.images || []).slice(0, 4).map((img, index) => `<img src="${img}" class="w-full h-auto object-cover rounded-md cursor-pointer ${index === 0 ? 'border-2 border-blue-600' : ''}" data-thumb-index="${index}">`).join('');
             return `
             <header class="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white sticky top-0 z-10">
@@ -335,17 +338,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.appendChild(newFeature);
             }
             if (action === 'delete-feature') { target.closest('.feature-row').remove(); }
+            
+            // --- MODIFICARE: Logica de salvare a fost actualizată ---
             if (action === 'save-product') {
                 actionButton.textContent = 'Se salvează...';
                 actionButton.disabled = true;
+                
+                // 1. Salvăm datele curente în 'state' (acesta încă folosește chei de genul 'romanian')
                 saveCurrentTabData();
                 state.editedProductData.brand = document.getElementById('product-brand').value;
                 const priceValue = document.getElementById('product-price').value;
                 state.editedProductData.price = priceValue.trim() === '' ? null : priceValue;
                 state.editedProductData.category = document.getElementById('product-category').value;
                 
+                // --- MODIFICARE: Transformăm cheile înainte de trimitere ---
+                
+                // 2. Creăm o copie a datelor
+                const payload = JSON.parse(JSON.stringify(state.editedProductData));
+
+                // 3. Verificăm dacă avem versiuni traduse
+                if (payload.other_versions) {
+                    const newOtherVersions = {};
+                    
+                    // 4. Iterăm prin cheile vechi (ex: 'romanian', 'german')
+                    for (const [langName, langData] of Object.entries(payload.other_versions)) {
+                        
+                        // 5. Găsim codul scurt (ex: 'ro')
+                        // Folosim toLowerCase() pentru siguranță și pentru a trimite codul cu litere mici
+                        const langCode = (languageNameToCodeMap[langName.toLowerCase()] || langName).toLowerCase();
+                        
+                        // 6. Atribuim datele la noua cheie (ex: newOtherVersions['ro'] = ...)
+                        newOtherVersions[langCode] = langData;
+                    }
+                    
+                    // 7. Înlocuim obiectul vechi cu cel nou, transformat
+                    payload.other_versions = newOtherVersions;
+                }
+                // --- SFÂRȘITUL MODIFICĂRII ---
+
                 const asin = document.getElementById('product-asin').value;
-                const success = await saveProductDetails(asin, state.editedProductData);
+                
+                // 8. Trimitem la webhook payload-ul cu cheile transformate (ex: 'ro')
+                const success = await saveProductDetails(asin, payload);
                 
                 if (success) { 
                     alert('Salvat cu succes!');
@@ -357,6 +391,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     actionButton.disabled = false;
                 }
             }
+            // --- SFÂRȘITUL BLOCULUI 'save-product' ---
+
         } else if (languageOption) {
             // ... (restul logicii 'languageOption' rămâne neschimbată)
             event.preventDefault();

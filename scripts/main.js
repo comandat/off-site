@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentManifestSKU: null, // <-- MODIFICARE: Stare pentru paletul curent
         currentProductId: null,
         editedProductData: {},
-        activeVersionKey: 'origin'
+        activeVersionKey: 'origin',
+        descriptionEditorMode: 'raw' // MODIFICARE: Stare pentru editorul de descriere
     };
 
     // --- MODIFICARE: Hărțile de limbi mutate aici pentru a fi globale ---
@@ -55,24 +56,17 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         import: () => `<div class="p-6 sm:p-8"><h2 class="text-3xl font-bold text-gray-800 mb-6">Import Comandă Nouă</h2><div class="max-w-md bg-white p-8 rounded-lg shadow-md"><form id="upload-form"><div class="mb-5"><label for="zip-file" class="block mb-2 text-sm font-medium">Manifest (.zip):</label><input type="file" id="zip-file" name="zipFile" accept=".zip" required class="w-full text-sm border-gray-300 rounded-lg cursor-pointer bg-gray-50"></div><div class="mb-6"><label for="pdf-file" class="block mb-2 text-sm font-medium">Factura (.pdf):</label><input type="file" id="pdf-file" name="pdfFile" accept=".pdf" required class="w-full text-sm border-gray-300 rounded-lg cursor-pointer bg-gray-50"></div><p id="upload-status" class="mt-4 text-center text-sm font-medium min-h-[20px]"></p><button id="upload-button" type="submit" class="w-full mt-2 flex justify-center items-center px-4 py-3 text-lg font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300"><span class="button-text">Trimite fișierele 🚀</span><div class="button-loader hidden w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div></button></form></div></div>`,
         
-        // <-- TEMPLATE MODIFICAT PENTRU AFIȘARE 1:1 ȘI FLEXIBILĂ
         paleti: (command, details) => {
             const paleti = {};
-            
-            // Grupare produse pe palet
             command.products.forEach(p => {
-                const sku = p.manifestsku || 'No ManifestSKU'; // Grupăm null/undefined ca 'No ManifestSKU'
-                if (!paleti[sku]) {
-                    paleti[sku] = [];
-                }
+                const sku = p.manifestsku || 'No ManifestSKU';
+                if (!paleti[sku]) paleti[sku] = [];
                 paleti[sku].push(p);
             });
-
             const paletiHTML = Object.entries(paleti).map(([sku, products]) => {
                 const firstProduct = products[0];
                 const firstProductDetails = firstProduct ? details[firstProduct.asin] : null;
-                const firstImage = firstProductDetails?.images?.[0] || ''; // Imaginea primului produs
-
+                const firstImage = firstProductDetails?.images?.[0] || '';
                 return `
                 <div class="bg-white p-4 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow w-40 flex flex-col items-center" data-manifest-sku="${sku}">
                     <img src="${firstImage}" alt="Imagine palet" class="w-32 h-32 object-contain rounded-md bg-gray-200 mb-4">
@@ -80,58 +74,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="text-sm text-gray-500">${products.length} produse</p>
                 </div>`;
             }).join('');
-
             return `
             <header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center">
                 <button data-action="back-to-comenzi" class="mr-4 p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button>
                 <h1 class="text-xl font-bold text-gray-800">Paleți din ${command.name}</h1>
             </header>
-            <div class="p-6 sm:p-8">
-                <div class="flex flex-wrap gap-4">
-                    ${paletiHTML}
-                </div>
-            </div>`;
+            <div class="p-6 sm:p-8"><div class="flex flex-wrap gap-4">${paletiHTML}</div></div>`;
         },
 
-        // <-- TEMPLATE MODIFICAT: Acum filtrează după manifestSKU
         produse: (command, details, manifestSKU) => {
-             // Filtrare produse bazat pe manifestSKU
              const productsToShow = command.products.filter(p => {
                  const sku = p.manifestsku || 'No ManifestSKU';
                  return sku === manifestSKU;
              });
-
-             const productsHTML = productsToShow.map(p => { // Folosim productsToShow
+             const productsHTML = productsToShow.map(p => {
                 const d = details[p.asin];
                 return `<div class="flex items-center gap-4 bg-white p-3 rounded-md shadow-sm cursor-pointer hover:bg-gray-50" data-product-id="${p.id}"><img src="${d?.images?.[0] || ''}" class="w-16 h-16 object-cover rounded-md bg-gray-200"><div class="flex-1"><p class="font-semibold line-clamp-2">${d?.title || 'N/A'}</p><p class="text-sm text-gray-500">${p.asin}</p></div><div class="text-right"><p class="font-bold text-lg">${p.found}/${p.expected}</p></div><span class="material-icons text-gray-400">chevron_right</span></div>`;
             }).join('');
-            
             return `
             <header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center">
                 <button data-action="back-to-paleti" class="mr-4 p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button> <h1 class="text-xl font-bold text-gray-800">Produse din ${manifestSKU}</h1> </header>
             <div class="p-4 space-y-2">${productsHTML}</div>`;
         },
+        
+        // --- MODIFICARE MAJORĂ: templates.produsDetaliu ---
         produsDetaliu: (product, details) => {
-            // --- MODIFICARE: Definițiile 'languages' și 'languageNameToCodeMap' au fost mutate în afara acestei funcții ---
-
+            
             const languageButtons = Object.entries(languages).map(([code, name]) =>
                 `<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 language-option" data-lang-code="${code}">${code.toUpperCase()}</a>`
             ).join('');
 
             const otherVersions = details.other_versions || {};
             
-            // --- MODIFICARE: Folosim 'languageNameToCodeMap' global ---
             const versionsButtons = Object.keys(otherVersions).map(key => {
-                // Căutăm numele limbii (ex: 'romanian') în harta inversă
-                const displayText = languageNameToCodeMap[key.toLowerCase()] || key.toUpperCase(); // Dacă nu găsește, folosește cheia originală
+                const displayText = languageNameToCodeMap[key.toLowerCase()] || key.toUpperCase();
                 return `<button data-version-key="${key}" class="px-4 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-md version-btn">${displayText}</button>`;
             }).join('');
-            // --- SFÂRȘITUL MODIFICĂRII ---
 
-            // --- MODIFICARE: Linia 'featuresHTML' a fost corectată ---
-            const featuresHTML = Object.entries(details.features || {}).map(([name, value]) => `<div class="flex items-center gap-4 feature-row"><input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button></div>`).join('');
+            // --- ȘTERS: 'featuresHTML' a fost eliminat ---
             
             const thumbnailsHTML = (details.images || []).slice(0, 4).map((img, index) => `<img src="${img}" class="w-full h-auto object-cover rounded-md cursor-pointer ${index === 0 ? 'border-2 border-blue-600' : ''}" data-thumb-index="${index}">`).join('');
+            
+            // Setează starea inițială a editorului pe 'raw'
+            state.descriptionEditorMode = 'raw'; 
+            
             return `
             <header class="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white sticky top-0 z-10">
                 <div class="flex items-center space-x-4"><button data-action="back-to-produse" class="text-gray-600"><span class="material-icons">arrow_back</span></button><h2 class="text-lg font-semibold">Detalii Produs</h2></div>
@@ -160,61 +146,97 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div><label class="text-sm font-medium text-gray-500">Brand</label><input id="product-brand" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${details.brand || ''}"></div>
                             <div><label class="text-sm font-medium text-gray-500">Preț estimat</label><input id="product-price" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${details.price || ''}"></div>
                             <div><label class="text-sm font-medium text-gray-500">ASIN</label><input id="product-asin" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${product.asin}" readonly></div>
-                            <div><label class="text-sm font-medium text-gray-500">Categorie eMAG</label><input id="product-category" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${details.category || ''}"></div>
-                        </div>
+                            </div>
                     </div>
                     <div class="lg:col-span-2 bg-white rounded-xl shadow-sm">
                          <div class="flex items-center justify-between p-4 border-b border-gray-200"><div id="version-selector" class="flex space-x-1 border rounded-lg p-1"><button data-version-key="origin" class="px-4 py-1.5 text-sm font-semibold rounded-md bg-blue-600 text-white version-btn">Origin</button>${versionsButtons}</div></div>
                          <div class="p-6 space-y-6">
                             <div><label for="product-title" class="text-sm font-medium text-gray-500">Titlu</label><input id="product-title" class="mt-1 block w-full text-xl font-semibold bg-transparent p-0 border-0 border-b-2" type="text" value="${details.title || ''}"></div>
-                            <div><label for="product-description" class="text-sm font-medium text-gray-500">Descriere</label><textarea id="product-description" rows="8" class="mt-1 block w-full bg-gray-50 border rounded-lg p-3">${details.description || ''}</textarea></div>
+                            
                             <div>
-                                <h3 class="text-sm font-medium text-gray-500">Caracteristici</h3><div id="features-container" class="mt-2 space-y-3">${featuresHTML}</div>
-                                <button data-action="add-feature" class="flex items-center space-x-2 text-sm text-blue-600 font-medium mt-3"><span class="material-icons">add_circle_outline</span><span>Adaugă caracteristică</span></button>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label for="product-description-raw" class="text-sm font-medium text-gray-500">Descriere</label>
+                                    <div class="flex items-center space-x-1 rounded-lg p-1 border">
+                                        <button data-action="toggle-description-mode" data-mode="raw" class="desc-mode-btn bg-blue-600 text-white rounded-md p-1.5">
+                                            <span class="material-icons text-base">code</span>
+                                        </button>
+                                        <button data-action="toggle-description-mode" data-mode="preview" class="desc-mode-btn hover:bg-gray-100 rounded-md p-1.5">
+                                            <span class="material-icons text-base">visibility</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea id="product-description-raw" rows="12" class="mt-1 block w-full bg-gray-50 border rounded-lg p-3 font-mono">${details.description || ''}</textarea>
+                                <div id="product-description-preview" contenteditable="true" class="hidden mt-1 block w-full h-[278px] overflow-y-auto bg-gray-50 border rounded-lg p-3"></div>
                             </div>
-                        </div>
+                            </div>
                     </div>
                 </div>
             </div>`;
         }
+        // --- SFÂRȘITUL MODIFICĂRII 'templates.produsDetaliu' ---
     };
     
-    // ... (funcțiile saveCurrentTabData și loadTabData rămân neschimbate)
+    // --- MODIFICARE: 'saveCurrentTabData' ---
     function saveCurrentTabData() {
         const title = document.getElementById('product-title').value;
-        const description = document.getElementById('product-description').value;
-        const features = {};
-        document.querySelectorAll('.feature-row').forEach(row => {
-            const name = row.querySelector('.feature-name').value.trim();
-            const value = row.querySelector('.feature-value').value.trim();
-            if (name) features[name] = value;
-        });
+        
+        // Citim descrierea din editorul activ
+        let description = '';
+        if (state.descriptionEditorMode === 'raw') {
+            const rawEl = document.getElementById('product-description-raw');
+            if(rawEl) description = rawEl.value;
+        } else {
+            const previewEl = document.getElementById('product-description-preview');
+            if(previewEl) description = previewEl.innerHTML;
+        }
+
+        // --- ȘTERS: Logica pentru 'features' a fost eliminată ---
 
         if (state.activeVersionKey === 'origin') {
             state.editedProductData.title = title;
             state.editedProductData.description = description;
-            state.editedProductData.features = features;
+            // --- ȘTERS: 'features' ---
         } else {
             if (!state.editedProductData.other_versions) state.editedProductData.other_versions = {};
             if (!state.editedProductData.other_versions[state.activeVersionKey]) state.editedProductData.other_versions[state.activeVersionKey] = {};
-            state.editedProductData.other_versions[state.activeVersionKey] = { title, description, features };
+            state.editedProductData.other_versions[state.activeVersionKey] = { title, description }; // --- ȘTERS: 'features' ---
         }
     }
 
+    // --- MODIFICARE: 'loadTabData' ---
     function loadTabData(versionKey) {
         let dataToLoad = {};
         if (versionKey === 'origin') { dataToLoad = state.editedProductData; } 
         else { dataToLoad = state.editedProductData.other_versions?.[versionKey] || {}; }
+        
         document.getElementById('product-title').value = dataToLoad.title || '';
-        document.getElementById('product-description').value = dataToLoad.description || '';
-        const featuresContainer = document.getElementById('features-container');
-        featuresContainer.innerHTML = Object.entries(dataToLoad.features || {}).map(([name, value]) => `<div class="flex items-center gap-4 feature-row"><input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" value="${name}"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" value="${value}"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button></div>`).join('');
+        
+        // Încarcă datele în ambele editoare de descriere
+        const description = dataToLoad.description || '';
+        const rawEl = document.getElementById('product-description-raw');
+        const previewEl = document.getElementById('product-description-preview');
+
+        if (rawEl) rawEl.value = description;
+        if (previewEl) previewEl.innerHTML = description;
+
+        // --- ȘTERS: Logica pentru 'features' a fost eliminată ---
+
+        // Resetează vizualizarea editorului la 'raw' când schimbăm tab-ul de limbă
+        if (rawEl && previewEl) {
+             rawEl.classList.remove('hidden');
+             previewEl.classList.add('hidden');
+             document.querySelector('.desc-mode-btn[data-mode="raw"]').classList.add('bg-blue-600', 'text-white');
+             document.querySelector('.desc-mode-btn[data-mode="raw"]').classList.remove('hover:bg-gray-100');
+             document.querySelector('.desc-mode-btn[data-mode="preview"]').classList.remove('bg-blue-600', 'text-white');
+             document.querySelector('.desc-mode-btn[data-mode="preview"]').classList.add('hover:bg-gray-100');
+             state.descriptionEditorMode = 'raw';
+        }
+
         state.activeVersionKey = versionKey;
         document.querySelectorAll('.version-btn').forEach(btn => btn.classList.toggle('bg-blue-600', btn.dataset.versionKey === versionKey));
         document.querySelectorAll('.version-btn').forEach(btn => btn.classList.toggle('text-white', btn.dataset.versionKey === versionKey));
     }
     
-    // <-- MODIFICAT: Funcția de randare a view-urilor
     async function renderView(viewId, context = {}) {
         let html = '';
         mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă...</div>`;
@@ -226,35 +248,26 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'import': 
                 html = templates.import(); 
                 break;
-            
-            // <-- VIEW NOU: Pentru paleți
             case 'paleti':
                 const commandForPaleti = AppState.getCommands().find(c => c.id === context.commandId);
                 if (commandForPaleti) {
-                    // Preluaăm detaliile tuturor produselor din comandă pentru a avea imaginile
                     const asinsForPaleti = commandForPaleti.products.map(p => p.asin);
                     const detailsForPaleti = await fetchProductDetailsInBulk(asinsForPaleti);
                     html = templates.paleti(commandForPaleti, detailsForPaleti);
                 }
                 break;
-            
-            // <-- VIEW MODIFICAT: Pentru produse (filtrat)
             case 'produse':
                 const command = AppState.getCommands().find(c => c.id === context.commandId);
-                // Verificăm dacă avem și commandId și manifestSKU
                 if (command && context.manifestSKU) { 
                     const asins = command.products.map(p => p.asin);
                     const details = await fetchProductDetailsInBulk(asins);
-                    // Pasăm manifestSKU-ul la template
                     html = templates.produse(command, details, context.manifestSKU); 
                 } else {
                      console.error('Eroare: commandId sau manifestSKU lipsă');
-                     await renderView('comenzi'); // Întoarcere la comenzi dacă e o eroare
+                     await renderView('comenzi');
                      return;
                 }
                 break;
-            
-            // <-- VIEW MODIFICAT: Pentru detalii produs
             case 'produs-detaliu':
                 const cmd = AppState.getCommands().find(c => c.id === context.commandId);
                 const product = cmd?.products.find(p => p.id === context.productId);
@@ -272,119 +285,126 @@ document.addEventListener('DOMContentLoaded', () => {
     
     sidebarButtons.forEach(button => button.addEventListener('click', () => renderView(button.dataset.view)));
 
-    // <-- MODIFICAT: Logica principală de click
+    // --- MODIFICARE: Logica de click ---
     mainContent.addEventListener('click', async (event) => {
         const target = event.target;
         const commandCard = target.closest('[data-command-id]');
-        const palletCard = target.closest('[data-manifest-sku]'); // <-- NOU: Selector pentru palet
+        const palletCard = target.closest('[data-manifest-sku]');
         const productCard = target.closest('[data-product-id]');
         const actionButton = target.closest('[data-action]');
         const versionButton = target.closest('.version-btn');
         const languageOption = target.closest('.language-option');
         const dropdownToggle = target.closest('.dropdown-toggle');
+        
+        // --- NOU: Logica pentru switch-ul de descriere ---
+        const descModeButton = target.closest('[data-action="toggle-description-mode"]');
 
         if (commandCard) {
-            // Click pe Comandă -> Mergi la Paleți
             state.currentCommandId = commandCard.dataset.commandId;
-            state.currentManifestSKU = null; // Resetăm paletul
-            state.currentProductId = null; // Resetăm produsul
-            await renderView('paleti', { commandId: state.currentCommandId }); // <-- SCHIMBAT din 'produse'
+            state.currentManifestSKU = null;
+            state.currentProductId = null;
+            await renderView('paleti', { commandId: state.currentCommandId });
         
         } else if (palletCard) { 
-            // <-- BLOC NOU: Click pe Palet -> Mergi la Produse
             state.currentManifestSKU = palletCard.dataset.manifestSku;
-            state.currentProductId = null; // Resetăm produsul
+            state.currentProductId = null;
             await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
         
         } else if (productCard) {
-            // Click pe Produs -> Mergi la Detalii
             state.currentProductId = productCard.dataset.productId;
             await renderView('produs-detaliu', { 
                 commandId: state.currentCommandId, 
                 productId: state.currentProductId
-                // Nu e nevoie să pasăm manifestSKU, e deja în state
             });
         
         } else if (versionButton) {
             saveCurrentTabData();
             loadTabData(versionButton.dataset.versionKey);
         
+        // --- NOU: Logica pentru switch-ul de descriere ---
+        } else if (descModeButton) {
+            const mode = descModeButton.dataset.mode;
+            if (mode === state.descriptionEditorMode) return; // Nu face nimic dacă e deja activ
+
+            const rawEl = document.getElementById('product-description-raw');
+            const previewEl = document.getElementById('product-description-preview');
+
+            if (mode === 'preview') {
+                // Trecere de la RAW la PREVIEW
+                previewEl.innerHTML = rawEl.value;
+                rawEl.classList.add('hidden');
+                previewEl.classList.remove('hidden');
+                state.descriptionEditorMode = 'preview';
+            } else {
+                // Trecere de la PREVIEW la RAW
+                rawEl.value = previewEl.innerHTML;
+                previewEl.classList.add('hidden');
+                rawEl.classList.remove('hidden');
+                state.descriptionEditorMode = 'raw';
+            }
+            
+            // Actualizează stilul butoanelor
+            document.querySelectorAll('.desc-mode-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('hover:bg-gray-100');
+            });
+            descModeButton.classList.add('bg-blue-600', 'text-white');
+            descModeButton.classList.remove('hover:bg-gray-100');
+
         } else if (actionButton) {
             const action = actionButton.dataset.action;
             
             if (action === 'back-to-comenzi') {
-                // Resetăm tot
                 state.currentCommandId = null;
                 state.currentManifestSKU = null;
                 state.currentProductId = null;
                 await renderView('comenzi');
             }
             if (action === 'back-to-paleti') { 
-                // <-- ACȚIUNE NOUĂ: Înapoi la paleți
                 state.currentManifestSKU = null;
                 state.currentProductId = null;
                 await renderView('paleti', { commandId: state.currentCommandId });
             }
             if (action === 'back-to-produse') {
-                // Înapoi la lista de produse (folosind SKU din state)
                 state.currentProductId = null;
-                await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU }); // <-- MODIFICAT
+                await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
             }
-            if (action === 'add-feature') {
-                const container = document.getElementById('features-container');
-                const newFeature = document.createElement('div');
-                newFeature.className = 'flex items-center gap-4 feature-row';
-                newFeature.innerHTML = `<input class="w-1/3 bg-gray-50 border rounded-md p-2 text-sm feature-name" type="text" placeholder="Nume"><input class="w-2/3 bg-gray-50 border rounded-md p-2 text-sm feature-value" type="text" placeholder="Valoare"><button data-action="delete-feature" class="text-gray-500 hover:text-red-500"><span class="material-icons">delete</span></button>`;
-                container.appendChild(newFeature);
-            }
-            if (action === 'delete-feature') { target.closest('.feature-row').remove(); }
             
-            // --- MODIFICARE: Logica de salvare a fost actualizată ---
+            // --- ȘTERS: Acțiunile 'add-feature' și 'delete-feature' ---
+
+            // --- MODIFICARE: Logica 'save-product' ---
             if (action === 'save-product') {
                 actionButton.textContent = 'Se salvează...';
                 actionButton.disabled = true;
                 
-                // 1. Salvăm datele curente în 'state' (acesta încă folosește chei de genul 'romanian')
+                // 1. Salvăm datele (include noua logică pentru descriere)
                 saveCurrentTabData();
                 state.editedProductData.brand = document.getElementById('product-brand').value;
                 const priceValue = document.getElementById('product-price').value;
                 state.editedProductData.price = priceValue.trim() === '' ? null : priceValue;
-                state.editedProductData.category = document.getElementById('product-category').value;
-                
-                // --- MODIFICARE: Transformăm cheile înainte de trimitere ---
+                // --- ȘTERS: Linia pentru 'category' ---
                 
                 // 2. Creăm o copie a datelor
                 const payload = JSON.parse(JSON.stringify(state.editedProductData));
 
-                // 3. Verificăm dacă avem versiuni traduse
+                // 3. Transformăm cheile 'other_versions'
                 if (payload.other_versions) {
                     const newOtherVersions = {};
-                    
-                    // 4. Iterăm prin cheile vechi (ex: 'romanian', 'german')
                     for (const [langName, langData] of Object.entries(payload.other_versions)) {
-                        
-                        // 5. Găsim codul scurt (ex: 'ro')
-                        // Folosim toLowerCase() pentru siguranță și pentru a trimite codul cu litere mici
                         const langCode = (languageNameToCodeMap[langName.toLowerCase()] || langName).toLowerCase();
-                        
-                        // 6. Atribuim datele la noua cheie (ex: newOtherVersions['ro'] = ...)
                         newOtherVersions[langCode] = langData;
                     }
-                    
-                    // 7. Înlocuim obiectul vechi cu cel nou, transformat
                     payload.other_versions = newOtherVersions;
                 }
-                // --- SFÂRȘITUL MODIFICĂRII ---
 
                 const asin = document.getElementById('product-asin').value;
                 
-                // 8. Trimitem la webhook payload-ul cu cheile transformate (ex: 'ro')
+                // 4. Trimitem payload-ul transformat
                 const success = await saveProductDetails(asin, payload);
                 
                 if (success) { 
                     alert('Salvat cu succes!');
-                    // La succes, ne întoarcem la lista de produse din paletul curent
-                    await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU }); // <-- MODIFICAT
+                    await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
                 } else {
                     alert('Eroare la salvare!');
                     actionButton.textContent = 'Salvează Modificările';
@@ -394,12 +414,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- SFÂRȘITUL BLOCULUI 'save-product' ---
 
         } else if (languageOption) {
-            // ... (restul logicii 'languageOption' rămâne neschimbată)
             event.preventDefault();
             const langCode = languageOption.dataset.langCode;
             const asin = document.getElementById('product-asin').value;
             const webhookUrl = 'https://automatizare.comandat.ro/webhook/43760233-f351-44ea-8966-6f470e063ae7';
-
             try {
                 const response = await fetch(webhookUrl, {
                     method: 'POST',
@@ -418,7 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (dropdownToggle) {
-            // ... (restul logicii 'dropdownToggle' rămâne neschimbată)
             const dropdownMenu = dropdownToggle.nextElementSibling;
             dropdownMenu.classList.toggle('hidden');
         } else if (!target.closest('.dropdown')) {
@@ -427,7 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     mainContent.addEventListener('input', (event) => {
-        // ... (restul logicii 'input' rămâne neschimbată)
         if (event.target.id === 'language-search') {
             const filter = event.target.value.toLowerCase();
             const links = document.querySelectorAll('#language-list .language-option');
@@ -439,7 +455,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     mainContent.addEventListener('submit', async (event) => {
-        // ... (restul logicii 'submit' rămâne neschimbată)
         if (event.target.id === 'upload-form') {
             event.preventDefault();
             const uploadBtn = document.getElementById('upload-button'), btnText = uploadBtn.querySelector('.button-text'), btnLoader = uploadBtn.querySelector('.button-loader'), statusEl = document.getElementById('upload-status'), formData = new FormData(event.target);

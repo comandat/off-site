@@ -117,15 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 `<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 language-option" data-lang-code="${code}">${code.toUpperCase()}</a>`
             ).join('');
 
-            // ...
-            
-            // --- MODIFICARE ÎNCEPUT ---
-            // Definim o hartă pentru a transforma cheile în textul dorit
-            const versionKeyToDisplay = {
-                'romanian': 'RO'
-                // Puteți adăuga și altele, de ex: 'bulgarian': 'BG'
-            };
-
             const otherVersions = details.other_versions || {};
             
             // --- MODIFICARE AICI ---

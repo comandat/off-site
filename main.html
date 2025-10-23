@@ -40,5 +40,32 @@
     </div>
 
     <script src="scripts/main.js" type="module"></script>
-</body>
+
+    <div id="image-lightbox" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-80 p-4 transition-opacity duration-300">
+        
+        <div data-action="close-lightbox" class="absolute inset-0 -z-10"></div>
+        
+        <button data-action="close-lightbox" class="absolute top-4 right-4 text-white opacity-70 hover:opacity-100 transition-opacity">
+            <span class="material-icons text-4xl">close</span>
+        </button>
+        
+        <div class="relative w-full h-[70%] flex items-center justify-center">
+            <img id="lightbox-main-image" src="" alt="Imagine mărită" class="max-w-full max-h-full object-contain">
+        </div>
+        
+        <div class="flex space-x-4 p-2 bg-gray-900 bg-opacity-50 rounded-lg mt-2">
+            <a id="lightbox-download-btn" href="#" download="image.jpg" class="flex items-center space-x-1 px-3 py-1.5 text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+                <span class="material-icons text-base">download</span>
+                <span class="text-sm">Descarcă</span>
+            </a>
+            <button id="lightbox-copy-btn" data-action="copy-lightbox-link" data-src="" class="flex items-center space-x-1 px-3 py-1.5 text-white bg-gray-600 rounded-md hover:bg-gray-700 transition-colors">
+                <span class="material-icons text-base">link</span>
+                <span id="lightbox-copy-text" class="text-sm">Copiază Link</span>
+            </button>
+        </div>
+        
+        <div id="lightbox-thumbs-container" class="w-full max-w-lg grid grid-cols-5 gap-2 mt-4 p-2 overflow-x-auto">
+            </div>
+    </div>
+    </body>
 </html>

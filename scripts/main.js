@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainContent = document.getElementById('main-content');
     const sidebarButtons = document.querySelectorAll('.sidebar-btn');
     const N8N_UPLOAD_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/d92efbca-eaf1-430e-8748-cc6466c82c6e';
-    // --- NOU: URL pentru competiție ---
     const COMPETITION_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/db241e9f-fe67-40bf-89ae-d06f13b90d09';
 
     const state = {
@@ -52,45 +51,57 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * --- NOU: Funcție pentru a genera stelele de rating ---
-     * @param {string} ratingString - Rating-ul ca string, ex: "4.58"
-     * @returns {string} - HTML-ul pentru 5 stele
-     */
     function renderCompetitionStars(ratingString) {
         const rating = parseFloat(ratingString) || 0;
         let starsHTML = '';
         for (let i = 1; i <= 5; i++) {
             if (i <= rating) {
-                // Stea plină
                 starsHTML += '<span class="material-icons text-yellow-400" style="font-size: 16px;">star</span>';
             } else if (i - 0.5 <= rating) {
-                // Jumătate de stea
                 starsHTML += '<span class="material-icons text-yellow-400" style="font-size: 16px;">star_half</span>';
             } else {
-                // Stea goală
                 starsHTML += '<span class="material-icons text-gray-300" style="font-size: 16px;">star_border</span>';
             }
         }
         return `<div class="flex items-center">${starsHTML}</div>`;
     }
 
+    // --- MODIFICAT: Funcția de randare a galeriei ---
     function renderImageGallery(images) {
+        // Cazul 1: Fără imagini (null sau undefined)
         if (!images) {
-            return `
-                <div class="flex flex-col items-center justify-center h-48 text-gray-500">
-                    <span class="material-icons text-4xl">photo_library</span>
-                    <p class="mt-2">Nu ai stabilit niste poze pentru aceasta tara.</p>
-                </div>
+            let buttonsHTML = `
                 <button data-action="add-image-url" class="mt-4 w-full flex items-center justify-center space-x-2 p-2 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
                     <span class="material-icons text-base">add_link</span>
                     <span>Adaugă Imagine (URL)</span>
                 </button>
             `;
+
+            // Adaugă butoanele "Copiază" și "AI" doar dacă NU suntem pe tab-ul 'origin'
+            if (state.activeVersionKey !== 'origin') {
+                buttonsHTML += `
+                    <div class="mt-2 grid grid-cols-2 gap-2">
+                        <button data-action="copy-origin-images" class="p-2 text-sm text-center text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition-colors">
+                            Copiaza pozele din Origin
+                        </button>
+                        <button data-action="translate-ai-images" class="p-2 text-sm text-center text-white bg-gray-500 rounded-lg hover:bg-gray-600 transition-colors">
+                            Adauga poze cu Traducere AI
+                        </button>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="flex flex-col items-center justify-center h-48 text-gray-500">
+                    <span class="material-icons text-4xl">photo_library</span>
+                    <p class="mt-2">Nu ai stabilit niste poze pentru aceasta tara.</p>
+                </div>
+                ${buttonsHTML}
+            `;
         }
         
+        // Cazul 2: Avem un array de imagini (posibil gol)
         const uniqueImages = [...new Set(images)];
-        
         const mainImageSrc = uniqueImages[0] || '';
         let thumbnailsHTML = '';
 
@@ -117,13 +128,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // Ascunde butonul "Adaugă" dacă avem 5 imagini
+        let addButtonHTML = '';
+        if (uniqueImages.length < 5) {
+            addButtonHTML = `
+                <button data-action="add-image-url" class="mt-4 w-full flex items-center justify-center space-x-2 p-2 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+                    <span class="material-icons text-base">add_link</span>
+                    <span>Adaugă Imagine (URL)</span>
+                </button>
+            `;
+        }
+
         return `
-            <img id="main-image" alt="Imaginea principală" class="w-[85%] mx-auto h-auto object-cover rounded-lg aspect-[4/3]" src="${mainImageSrc}">
+            <img id="main-image" data-action="open-lightbox" alt="Imaginea principală" class="w-[85%] mx-auto h-auto object-cover rounded-lg aspect-[4/3] cursor-pointer" src="${mainImageSrc}">
             <div id="thumbnails-container" class="grid grid-cols-5 gap-2 mt-4">${thumbnailsHTML}</div>
-            <button data-action="add-image-url" class="mt-4 w-full flex items-center justify-center space-x-2 p-2 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
-                <span class="material-icons text-base">add_link</span>
-                <span>Adaugă Imagine (URL)</span>
-            </button>
+            ${addButtonHTML}
         `;
     }
 
@@ -138,8 +157,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!state.editedProductData.other_versions) state.editedProductData.other_versions = {};
         if (!state.editedProductData.other_versions[key]) state.editedProductData.other_versions[key] = {};
-        if (!state.editedProductData.other_versions[key].images) {
-            return null;
+        if (state.editedProductData.other_versions[key].images === undefined) { // Verificăm 'undefined'
+            return null; // Returnăm null dacă proprietatea 'images' nu există
         }
         return state.editedProductData.other_versions[key].images;
     }
@@ -218,31 +237,27 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="p-4 space-y-2">${productsHTML}</div>`;
         },
         
-        // --- NOU: Template pentru secțiunea Competiție ---
         competition: (competitionData) => {
             let cardsHTML = '';
             for (let i = 1; i <= 5; i++) {
                 const name = competitionData[`productname_${i}`];
-                // Dacă nu există produsul N, nu mai generăm carduri
                 if (!name) break; 
 
                 const image = competitionData[`productimage_${i}`] || '';
                 const url = competitionData[`producturl_${i}`] || '#';
                 const rating = competitionData[`rating_${i}`];
                 const reviews = competitionData[`reviewscount_${i}`] || '';
-                const oldPrice = competitionData[`oldprice_${i}`]; // Ex: "PRP: 701,59 Lei"
-                const currentPrice = competitionData[`currentprice_${i}`] || ''; // Ex: "538,45 Lei"
+                const oldPrice = competitionData[`oldprice_${i}`];
+                const currentPrice = competitionData[`currentprice_${i}`] || '';
                 const promoLabel = competitionData[`promotionlabel_${i}`];
-                const dealLabel = competitionData[`dealtype_${i}`]; // Ex: "Top Favorite"
+                const dealLabel = competitionData[`dealtype_${i}`];
 
-                // Construim etichetele (promoLabel are prioritate)
                 let labelHTML = '';
                 const labelText = promoLabel || dealLabel;
                 if (labelText) {
                     labelHTML = `<span class="absolute top-2 left-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">${labelText}</span>`;
                 }
                 
-                // Construim prețul
                 let priceHTML = '';
                 if (oldPrice) {
                     priceHTML += `<p class="text-sm text-gray-500 line-through">${oldPrice}</p>`;
@@ -255,7 +270,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             <img src="${image}" alt="${name}" class="w-full h-full object-contain p-2">
                             ${labelHTML}
                         </div>
-                        
                         <div class="p-4 flex-1 flex flex-col justify-between">
                             <div>
                                 <div class="flex items-center space-x-1 mb-1">
@@ -264,7 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                                 <h3 class="font-semibold text-gray-800 text-sm h-20 overflow-hidden line-clamp-3">${name}</h3>
                             </div>
-                            
                             <div>
                                 <div class="mt-2 mb-3">
                                     ${priceHTML}
@@ -279,11 +292,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }
 
-            // Returnăm cardurile într-un grid
             return `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">${cardsHTML}</div>`;
         },
         
-        // --- MODIFICAT: Adăugat placeholder-ul pentru competiție ---
         produsDetaliu: (product, details) => {
             
             const languageButtons = Object.entries(languages).map(([code, name]) =>
@@ -358,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="p-8 text-center text-gray-500">Se încarcă...</div>
                         </div>
                     </div>
-                    </div>
+                </div>
             </div>`;
         }
     };
@@ -386,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } else {
             const arr = getCurrentImagesArray();
-            currentImages = arr ? [...arr] : [];
+            currentImages = arr ? [...new Set(arr)] : []; // Asigurăm unicitatea și aici
         }
         
         const key = state.activeVersionKey;
@@ -441,7 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const galleryContainer = document.getElementById('image-gallery-container');
         if (galleryContainer) {
             galleryContainer.innerHTML = renderImageGallery(imagesToLoad);
-            if (imagesToLoad) {
+            if (imagesToLoad) { // Doar dacă avem imagini
                 initializeSortable();
             }
         }
@@ -450,13 +461,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.version-btn').forEach(btn => btn.classList.toggle('text-white', btn.dataset.versionKey === versionKey));
     }
     
-    // --- NOU: Funcție pentru a prelua și afișa datele despre competiție ---
     async function fetchAndRenderCompetition(asin) {
         const container = document.getElementById('competition-container');
         if (!container) return;
 
         try {
-            // Folosim POST pentru a trimite ASIN-ul în body, conform așteptărilor n8n
             const response = await fetch(COMPETITION_WEBHOOK_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -473,7 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- MODIFICAT: renderView ---
     async function renderView(viewId, context = {}) {
         let html = '';
         mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă...</div>`;
@@ -520,34 +528,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     state.editedProductData = JSON.parse(JSON.stringify(productDetails));
                     state.activeVersionKey = 'origin';
                     
-                    // Generăm HTML-ul principal (care include placeholder-ul <div id="competition-container">)
                     html = templates.produsDetaliu(product, state.editedProductData);
                     mainContent.innerHTML = html;
                     setActiveView(viewId);
 
-                    // --- MODIFICARE: Apelăm funcțiile post-randare ---
-                    // 1. Inițiem galeria de imagini 'origin'
                     const galleryContainer = document.getElementById('image-gallery-container');
                     if (galleryContainer) {
                         galleryContainer.innerHTML = renderImageGallery(state.editedProductData.images);
                         initializeSortable();
                     }
-                    // 2. Începem preluarea datelor despre competiție (fără a bloca)
                     fetchAndRenderCompetition(product.asin);
-                    return; // Ieșim devreme pentru a nu suprascrie innerHTML
+                    return;
                 }
                 break;
         }
         
-        // Acest 'innerHTML' este pentru toate celelalte view-uri
         mainContent.innerHTML = html;
         setActiveView(viewId);
     }
     
     sidebarButtons.forEach(button => button.addEventListener('click', () => renderView(button.dataset.view)));
 
+    // --- MODIFICAT: Logica de Click extinsă ---
     mainContent.addEventListener('click', async (event) => {
         const target = event.target;
+        
+        // Căutăm toate elementele interactive
         const commandCard = target.closest('[data-command-id]');
         const palletCard = target.closest('[data-manifest-sku]');
         const productCard = target.closest('[data-product-id]');
@@ -557,6 +563,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const dropdownToggle = target.closest('.dropdown-toggle');
         const descModeButton = target.closest('[data-action="toggle-description-mode"]');
         const thumbnail = target.closest('[data-action="select-thumbnail"]');
+        
+        // --- NOU: Elemente pentru Lightbox ---
+        const lightboxThumbnail = target.closest('[data-action="select-lightbox-thumbnail"]');
 
         if (commandCard) {
             state.currentCommandId = commandCard.dataset.commandId;
@@ -619,9 +628,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 img.classList.toggle('border-blue-600', isSelected);
             });
         
+        // --- NOU: Click pe thumbnail în Lightbox ---
+        } else if (lightboxThumbnail) {
+            const src = lightboxThumbnail.dataset.src;
+            if (!src) return;
+
+            document.getElementById('lightbox-main-image').src = src;
+            document.getElementById('lightbox-download-btn').href = src;
+            document.getElementById('lightbox-copy-btn').dataset.src = src;
+            
+            document.querySelectorAll('.lightbox-thumbnail').forEach(thumb => {
+                thumb.classList.toggle('border-blue-600', thumb.dataset.src === src);
+                thumb.classList.toggle('border-gray-500', thumb.dataset.src !== src);
+            });
+        
         } else if (actionButton) {
             const action = actionButton.dataset.action;
             
+            // --- Acțiuni de Navigare ---
             if (action === 'back-to-comenzi') {
                 state.currentCommandId = null;
                 state.currentManifestSKU = null;
@@ -638,6 +662,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
             }
             
+            // --- Acțiuni Lightbox ---
+            if (action === 'open-lightbox') {
+                const mainImageSrc = target.src;
+                if (!mainImageSrc) return; // Nu deschide dacă nu există imagine
+                
+                const lightbox = document.getElementById('image-lightbox');
+                const mainImageEl = document.getElementById('lightbox-main-image');
+                const thumbsContainer = document.getElementById('lightbox-thumbs-container');
+                const copyBtn = document.getElementById('lightbox-copy-btn');
+                const downloadBtn = document.getElementById('lightbox-download-btn');
+                const copyText = document.getElementById('lightbox-copy-text');
+
+                // Resetează textul butonului de copiere
+                copyText.textContent = 'Copiază Link';
+                
+                // Setează imaginea principală și butoanele
+                mainImageEl.src = mainImageSrc;
+                downloadBtn.href = mainImageSrc;
+                copyBtn.dataset.src = mainImageSrc;
+                
+                // Generează miniaturile
+                const currentImages = [...new Set(getCurrentImagesArray() || [])]; // Curățăm array-ul
+                let thumbsHTML = '';
+                currentImages.forEach(img => {
+                    const isSelected = img === mainImageSrc;
+                    thumbsHTML += `
+                        <img data-action="select-lightbox-thumbnail" data-src="${img}" src="${img}" 
+                             class="w-full h-16 object-cover rounded-md cursor-pointer lightbox-thumbnail border-2 
+                             ${isSelected ? 'border-blue-600' : 'border-gray-500'}">
+                    `;
+                });
+                thumbsContainer.innerHTML = thumbsHTML;
+                
+                // Afișează lightbox-ul
+                lightbox.classList.remove('hidden');
+            }
+            if (action === 'close-lightbox') {
+                document.getElementById('image-lightbox').classList.add('hidden');
+            }
+            if (action === 'copy-lightbox-link') {
+                const src = actionButton.dataset.src;
+                navigator.clipboard.writeText(src).then(() => {
+                    document.getElementById('lightbox-copy-text').textContent = 'Copiat!';
+                }, () => {
+                    alert('Eroare la copiere link.');
+                });
+            }
+
+            // --- Acțiuni Galerie Imagini ---
             if (action === 'delete-image') {
                 const imageSrc = actionButton.dataset.imageSrc;
                 if (!imageSrc) return;
@@ -655,18 +728,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     initializeSortable();
                 }
             }
-            
             if (action === 'add-image-url') {
+                let currentImages = getCurrentImagesArray();
+                if (!currentImages) currentImages = [];
+
+                // Verifică din nou, deși butonul ar trebui să fie ascuns
+                if (currentImages.length >= 5) {
+                    alert("Puteți adăuga maxim 5 imagini.");
+                    return;
+                }
+
                 const newImageUrl = prompt("Vă rugăm introduceți URL-ul noii imagini:");
                 if (newImageUrl) {
-                    let currentImages = getCurrentImagesArray();
-                    if (!currentImages) currentImages = [];
-                    
-                    if (currentImages.length >= 5) {
-                        alert("Puteți adăuga maxim 5 imagini.");
-                        return;
-                    }
-
                     currentImages.push(newImageUrl);
                     setCurrentImagesArray(currentImages);
                     
@@ -677,7 +750,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+            if (action === 'copy-origin-images') {
+                const originImages = state.editedProductData.images || [];
+                // Setăm o copie, nu referința
+                setCurrentImagesArray([...originImages]); 
+                
+                // Re-randăm galeria
+                const galleryContainer = document.getElementById('image-gallery-container');
+                if (galleryContainer) {
+                    galleryContainer.innerHTML = renderImageGallery(originImages);
+                    initializeSortable();
+                }
+            }
+            if (action === 'translate-ai-images') {
+                alert('Funcționalitatea de traducere AI a imaginilor va fi implementată curând.');
+            }
 
+            // --- Acțiune Salvare Produs ---
             if (action === 'save-product') {
                 actionButton.textContent = 'Se salvează...';
                 actionButton.disabled = true;

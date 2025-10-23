@@ -66,10 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<div class="flex items-center">${starsHTML}</div>`;
     }
 
-    // --- MODIFICAT: Funcția de randare a galeriei ---
     function renderImageGallery(images) {
-        // Cazul 1: Fără imagini (null sau undefined)
-        if (!images) {
+        if (images === undefined || images === null) { // Verifică explicit
             let buttonsHTML = `
                 <button data-action="add-image-url" class="mt-4 w-full flex items-center justify-center space-x-2 p-2 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
                     <span class="material-icons text-base">add_link</span>
@@ -77,7 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             `;
 
-            // Adaugă butoanele "Copiază" și "AI" doar dacă NU suntem pe tab-ul 'origin'
             if (state.activeVersionKey !== 'origin') {
                 buttonsHTML += `
                     <div class="mt-2 grid grid-cols-2 gap-2">
@@ -100,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }
         
-        // Cazul 2: Avem un array de imagini (posibil gol)
         const uniqueImages = [...new Set(images)];
         const mainImageSrc = uniqueImages[0] || '';
         let thumbnailsHTML = '';
@@ -128,7 +124,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Ascunde butonul "Adaugă" dacă avem 5 imagini
         let addButtonHTML = '';
         if (uniqueImages.length < 5) {
             addButtonHTML = `
@@ -157,8 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!state.editedProductData.other_versions) state.editedProductData.other_versions = {};
         if (!state.editedProductData.other_versions[key]) state.editedProductData.other_versions[key] = {};
-        if (state.editedProductData.other_versions[key].images === undefined) { // Verificăm 'undefined'
-            return null; // Returnăm null dacă proprietatea 'images' nu există
+        if (state.editedProductData.other_versions[key].images === undefined) {
+            return null;
         }
         return state.editedProductData.other_versions[key].images;
     }
@@ -397,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } else {
             const arr = getCurrentImagesArray();
-            currentImages = arr ? [...new Set(arr)] : []; // Asigurăm unicitatea și aici
+            currentImages = arr ? [...new Set(arr)] : [];
         }
         
         const key = state.activeVersionKey;
@@ -452,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const galleryContainer = document.getElementById('image-gallery-container');
         if (galleryContainer) {
             galleryContainer.innerHTML = renderImageGallery(imagesToLoad);
-            if (imagesToLoad) { // Doar dacă avem imagini
+            if (imagesToLoad) {
                 initializeSortable();
             }
         }
@@ -549,11 +544,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     sidebarButtons.forEach(button => button.addEventListener('click', () => renderView(button.dataset.view)));
 
-    // --- MODIFICAT: Logica de Click extinsă ---
+    // --- MODIFICAT: Logica de click mutată în afara ascultătorului Lightbox ---
     mainContent.addEventListener('click', async (event) => {
         const target = event.target;
         
-        // Căutăm toate elementele interactive
         const commandCard = target.closest('[data-command-id]');
         const palletCard = target.closest('[data-manifest-sku]');
         const productCard = target.closest('[data-product-id]');
@@ -563,9 +557,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const dropdownToggle = target.closest('.dropdown-toggle');
         const descModeButton = target.closest('[data-action="toggle-description-mode"]');
         const thumbnail = target.closest('[data-action="select-thumbnail"]');
-        
-        // --- NOU: Elemente pentru Lightbox ---
-        const lightboxThumbnail = target.closest('[data-action="select-lightbox-thumbnail"]');
 
         if (commandCard) {
             state.currentCommandId = commandCard.dataset.commandId;
@@ -628,20 +619,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 img.classList.toggle('border-blue-600', isSelected);
             });
         
-        // --- NOU: Click pe thumbnail în Lightbox ---
-        } else if (lightboxThumbnail) {
-            const src = lightboxThumbnail.dataset.src;
-            if (!src) return;
-
-            document.getElementById('lightbox-main-image').src = src;
-            document.getElementById('lightbox-download-btn').href = src;
-            document.getElementById('lightbox-copy-btn').dataset.src = src;
-            
-            document.querySelectorAll('.lightbox-thumbnail').forEach(thumb => {
-                thumb.classList.toggle('border-blue-600', thumb.dataset.src === src);
-                thumb.classList.toggle('border-gray-500', thumb.dataset.src !== src);
-            });
-        
         } else if (actionButton) {
             const action = actionButton.dataset.action;
             
@@ -662,55 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
             }
             
-            // --- Acțiuni Lightbox ---
-            if (action === 'open-lightbox') {
-                const mainImageSrc = target.src;
-                if (!mainImageSrc) return; // Nu deschide dacă nu există imagine
-                
-                const lightbox = document.getElementById('image-lightbox');
-                const mainImageEl = document.getElementById('lightbox-main-image');
-                const thumbsContainer = document.getElementById('lightbox-thumbs-container');
-                const copyBtn = document.getElementById('lightbox-copy-btn');
-                const downloadBtn = document.getElementById('lightbox-download-btn');
-                const copyText = document.getElementById('lightbox-copy-text');
-
-                // Resetează textul butonului de copiere
-                copyText.textContent = 'Copiază Link';
-                
-                // Setează imaginea principală și butoanele
-                mainImageEl.src = mainImageSrc;
-                downloadBtn.href = mainImageSrc;
-                copyBtn.dataset.src = mainImageSrc;
-                
-                // Generează miniaturile
-                const currentImages = [...new Set(getCurrentImagesArray() || [])]; // Curățăm array-ul
-                let thumbsHTML = '';
-                currentImages.forEach(img => {
-                    const isSelected = img === mainImageSrc;
-                    thumbsHTML += `
-                        <img data-action="select-lightbox-thumbnail" data-src="${img}" src="${img}" 
-                             class="w-full h-16 object-cover rounded-md cursor-pointer lightbox-thumbnail border-2 
-                             ${isSelected ? 'border-blue-600' : 'border-gray-500'}">
-                    `;
-                });
-                thumbsContainer.innerHTML = thumbsHTML;
-                
-                // Afișează lightbox-ul
-                lightbox.classList.remove('hidden');
-            }
-            if (action === 'close-lightbox') {
-                document.getElementById('image-lightbox').classList.add('hidden');
-            }
-            if (action === 'copy-lightbox-link') {
-                const src = actionButton.dataset.src;
-                navigator.clipboard.writeText(src).then(() => {
-                    document.getElementById('lightbox-copy-text').textContent = 'Copiat!';
-                }, () => {
-                    alert('Eroare la copiere link.');
-                });
-            }
-
-            // --- Acțiuni Galerie Imagini ---
+            // --- Acțiuni Galerie Imagini (excluzând lightbox) ---
             if (action === 'delete-image') {
                 const imageSrc = actionButton.dataset.imageSrc;
                 if (!imageSrc) return;
@@ -732,7 +661,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 let currentImages = getCurrentImagesArray();
                 if (!currentImages) currentImages = [];
 
-                // Verifică din nou, deși butonul ar trebui să fie ascuns
                 if (currentImages.length >= 5) {
                     alert("Puteți adăuga maxim 5 imagini.");
                     return;
@@ -752,10 +680,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (action === 'copy-origin-images') {
                 const originImages = state.editedProductData.images || [];
-                // Setăm o copie, nu referința
                 setCurrentImagesArray([...originImages]); 
                 
-                // Re-randăm galeria
                 const galleryContainer = document.getElementById('image-gallery-container');
                 if (galleryContainer) {
                     galleryContainer.innerHTML = renderImageGallery(originImages);
@@ -829,6 +755,76 @@ document.addEventListener('DOMContentLoaded', () => {
             dropdownMenu.classList.toggle('hidden');
         } else if (!target.closest('.dropdown')) {
             document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.add('hidden'));
+        }
+    });
+
+    // --- NOU: Ascultător de evenimente la nivel de document pentru Lightbox ---
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        const actionButton = target.closest('[data-action]');
+        const lightboxThumbnail = target.closest('[data-action="select-lightbox-thumbnail"]');
+
+        if (lightboxThumbnail) {
+            const src = lightboxThumbnail.dataset.src;
+            if (!src) return;
+
+            document.getElementById('lightbox-main-image').src = src;
+            document.getElementById('lightbox-copy-btn').dataset.src = src;
+            
+            // Resetează textul butonului de copiere
+            document.getElementById('lightbox-copy-text').textContent = 'Copiază Link';
+            
+            document.querySelectorAll('.lightbox-thumbnail').forEach(thumb => {
+                thumb.classList.toggle('border-blue-600', thumb.dataset.src === src);
+                thumb.classList.toggle('border-gray-500', thumb.dataset.src !== src);
+            });
+            return;
+        }
+
+        if (actionButton) {
+            const action = actionButton.dataset.action;
+
+            if (action === 'open-lightbox') {
+                const mainImageSrc = target.src;
+                if (!mainImageSrc) return;
+                
+                const lightbox = document.getElementById('image-lightbox');
+                const mainImageEl = document.getElementById('lightbox-main-image');
+                const thumbsContainer = document.getElementById('lightbox-thumbs-container');
+                const copyBtn = document.getElementById('lightbox-copy-btn');
+                const copyText = document.getElementById('lightbox-copy-text');
+
+                copyText.textContent = 'Copiază Link';
+                mainImageEl.src = mainImageSrc;
+                copyBtn.dataset.src = mainImageSrc;
+                
+                const currentImages = [...new Set(getCurrentImagesArray() || [])];
+                let thumbsHTML = '';
+                currentImages.forEach(img => {
+                    const isSelected = img === mainImageSrc;
+                    thumbsHTML += `
+                        <img data-action="select-lightbox-thumbnail" data-src="${img}" src="${img}" 
+                             class="w-full h-16 object-cover rounded-md cursor-pointer lightbox-thumbnail border-2 
+                             ${isSelected ? 'border-blue-600' : 'border-gray-500'}">
+                    `;
+                });
+                thumbsContainer.innerHTML = thumbsHTML;
+                
+                lightbox.classList.remove('hidden');
+            }
+            
+            if (action === 'close-lightbox') {
+                document.getElementById('image-lightbox').classList.add('hidden');
+            }
+            
+            if (action === 'copy-lightbox-link') {
+                const src = actionButton.dataset.src;
+                navigator.clipboard.writeText(src).then(() => {
+                    document.getElementById('lightbox-copy-text').textContent = 'Copiat!';
+                }, () => {
+                    alert('Eroare la copiere link.');
+                });
+            }
         }
     });
 

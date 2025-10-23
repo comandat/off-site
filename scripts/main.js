@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainContent = document.getElementById('main-content');
     const sidebarButtons = document.querySelectorAll('.sidebar-btn');
     const N8N_UPLOAD_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/d92efbca-eaf1-430e-8748-cc6466c82c6e';
+    // --- NOU: URL pentru competiție ---
+    const COMPETITION_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/db241e9f-fe67-40bf-89ae-d06f13b90d09';
 
     const state = {
         currentCommandId: null,
@@ -13,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editedProductData: {},
         activeVersionKey: 'origin',
         descriptionEditorMode: 'raw',
-        sortableInstance: null // Pentru a gestiona instanța Drag & Drop
+        sortableInstance: null 
     };
 
     const languages = {
@@ -33,7 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
         languageNameToCodeMap[name.toLowerCase()] = code.toUpperCase();
     }
 
-    // --- MODIFICAT: Funcție pentru a activa Drag & Drop (Sortable.js) ---
     function initializeSortable() {
         const thumbsContainer = document.getElementById('thumbnails-container');
         if (state.sortableInstance) {
@@ -52,10 +53,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * --- MODIFICAT: Funcție helper pentru a randa galeria de imagini ---
-     * @param {string[]} images - Array de URL-uri de imagini
-     * @returns {string} - HTML-ul pentru galerie
+     * --- NOU: Funcție pentru a genera stelele de rating ---
+     * @param {string} ratingString - Rating-ul ca string, ex: "4.58"
+     * @returns {string} - HTML-ul pentru 5 stele
      */
+    function renderCompetitionStars(ratingString) {
+        const rating = parseFloat(ratingString) || 0;
+        let starsHTML = '';
+        for (let i = 1; i <= 5; i++) {
+            if (i <= rating) {
+                // Stea plină
+                starsHTML += '<span class="material-icons text-yellow-400" style="font-size: 16px;">star</span>';
+            } else if (i - 0.5 <= rating) {
+                // Jumătate de stea
+                starsHTML += '<span class="material-icons text-yellow-400" style="font-size: 16px;">star_half</span>';
+            } else {
+                // Stea goală
+                starsHTML += '<span class="material-icons text-gray-300" style="font-size: 16px;">star_border</span>';
+            }
+        }
+        return `<div class="flex items-center">${starsHTML}</div>`;
+    }
+
     function renderImageGallery(images) {
         if (!images) {
             return `
@@ -70,22 +89,19 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }
         
-        // --- FIX: De-duplicare imagini în caz de date corupte ---
         const uniqueImages = [...new Set(images)];
         
         const mainImageSrc = uniqueImages[0] || '';
         let thumbnailsHTML = '';
 
         for (let i = 0; i < 5; i++) {
-            const img = uniqueImages[i]; // Folosim array-ul de imagini unice
+            const img = uniqueImages[i];
             if (img) {
                 thumbnailsHTML += `
                     <div class="relative group aspect-square" data-image-src="${img}">
                         <img src="${img}" 
                              class="w-full h-full object-cover rounded-md thumbnail-image ${mainImageSrc === img ? 'border-2 border-blue-600' : ''}">
-                        
                         <div data-action="select-thumbnail" data-src="${img}" class="absolute inset-0 cursor-pointer z-0"></div>
-                        
                         <button data-action="delete-image" data-image-src="${img}" 
                                 class="absolute top-0 right-0 -mt-1 -mr-1 p-0.5 bg-red-600 text-white rounded-full hidden group-hover:block hover:bg-red-700 transition-all opacity-90 hover:opacity-100 z-10">
                             <span class="material-icons" style="font-size: 16px;">close</span>
@@ -202,6 +218,72 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="p-4 space-y-2">${productsHTML}</div>`;
         },
         
+        // --- NOU: Template pentru secțiunea Competiție ---
+        competition: (competitionData) => {
+            let cardsHTML = '';
+            for (let i = 1; i <= 5; i++) {
+                const name = competitionData[`productname_${i}`];
+                // Dacă nu există produsul N, nu mai generăm carduri
+                if (!name) break; 
+
+                const image = competitionData[`productimage_${i}`] || '';
+                const url = competitionData[`producturl_${i}`] || '#';
+                const rating = competitionData[`rating_${i}`];
+                const reviews = competitionData[`reviewscount_${i}`] || '';
+                const oldPrice = competitionData[`oldprice_${i}`]; // Ex: "PRP: 701,59 Lei"
+                const currentPrice = competitionData[`currentprice_${i}`] || ''; // Ex: "538,45 Lei"
+                const promoLabel = competitionData[`promotionlabel_${i}`];
+                const dealLabel = competitionData[`dealtype_${i}`]; // Ex: "Top Favorite"
+
+                // Construim etichetele (promoLabel are prioritate)
+                let labelHTML = '';
+                const labelText = promoLabel || dealLabel;
+                if (labelText) {
+                    labelHTML = `<span class="absolute top-2 left-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">${labelText}</span>`;
+                }
+                
+                // Construim prețul
+                let priceHTML = '';
+                if (oldPrice) {
+                    priceHTML += `<p class="text-sm text-gray-500 line-through">${oldPrice}</p>`;
+                }
+                priceHTML += `<p class="text-xl font-bold text-red-600">${currentPrice}</p>`;
+
+                cardsHTML += `
+                    <div class="w-full max-w-xs bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
+                        <div class="relative w-full h-48">
+                            <img src="${image}" alt="${name}" class="w-full h-full object-contain p-2">
+                            ${labelHTML}
+                        </div>
+                        
+                        <div class="p-4 flex-1 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center space-x-1 mb-1">
+                                    ${renderCompetitionStars(rating)}
+                                    <span class="text-sm text-gray-500">${reviews}</span>
+                                </div>
+                                <h3 class="font-semibold text-gray-800 text-sm h-20 overflow-hidden line-clamp-3">${name}</h3>
+                            </div>
+                            
+                            <div>
+                                <div class="mt-2 mb-3">
+                                    ${priceHTML}
+                                </div>
+                                <a href="${url}" target="_blank" rel="noopener noreferrer" 
+                                   class="block w-full text-center px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors">
+                                   Vezi Produsul
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Returnăm cardurile într-un grid
+            return `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">${cardsHTML}</div>`;
+        },
+        
+        // --- MODIFICAT: Adăugat placeholder-ul pentru competiție ---
         produsDetaliu: (product, details) => {
             
             const languageButtons = Object.entries(languages).map(([code, name]) =>
@@ -240,21 +322,18 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="p-6 lg:p-8 flex-1">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div class="lg:col-span-1 space-y-6">
-                        
-                        <div id="image-gallery-container" class="bg-white p-4 rounded-xl shadow-sm">
-                            </div>
-                        
+                        <div id="image-gallery-container" class="bg-white p-4 rounded-xl shadow-sm"></div>
                         <div class="bg-white p-4 rounded-xl shadow-sm space-y-4">
                             <div><label class="text-sm font-medium text-gray-500">Brand</label><input id="product-brand" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${details.brand || ''}"></div>
                             <div><label class="text-sm font-medium text-gray-500">Preț estimat</label><input id="product-price" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${details.price || ''}"></div>
                             <div><label class="text-sm font-medium text-gray-500">ASIN</label><input id="product-asin" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${product.asin}" readonly></div>
                         </div>
                     </div>
+                    
                     <div class="lg:col-span-2 bg-white rounded-xl shadow-sm">
                          <div class="flex items-center justify-between p-4 border-b border-gray-200"><div id="version-selector" class="flex space-x-1 border rounded-lg p-1"><button data-version-key="origin" class="px-4 py-1.5 text-sm font-semibold rounded-md bg-blue-600 text-white version-btn">Origin</button>${versionsButtons}</div></div>
                          <div class="p-6 space-y-6">
                             <div><label for="product-title" class="text-sm font-medium text-gray-500">Titlu</label><input id="product-title" class="mt-1 block w-full text-xl font-semibold bg-transparent p-0 border-0 border-b-2" type="text" value="${details.title || ''}"></div>
-                            
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label for="product-description-raw" class="text-sm font-medium text-gray-500">Descriere</label>
@@ -272,14 +351,21 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                     </div>
-                </div>
+
+                    <div class="lg:col-span-3 mt-8">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Competiție</h2>
+                        <div id="competition-container">
+                            <div class="p-8 text-center text-gray-500">Se încarcă...</div>
+                        </div>
+                    </div>
+                    </div>
             </div>`;
         }
     };
     
     function saveCurrentTabData() {
         const titleEl = document.getElementById('product-title');
-        if (!titleEl) return; // Ieșim dacă elementele nu există
+        if (!titleEl) return;
         
         const title = titleEl.value;
         
@@ -300,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } else {
             const arr = getCurrentImagesArray();
-            currentImages = arr ? [...arr] : []; // Folosim array-ul din state dacă DOM-ul nu e randat
+            currentImages = arr ? [...arr] : [];
         }
         
         const key = state.activeVersionKey;
@@ -364,6 +450,30 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.version-btn').forEach(btn => btn.classList.toggle('text-white', btn.dataset.versionKey === versionKey));
     }
     
+    // --- NOU: Funcție pentru a prelua și afișa datele despre competiție ---
+    async function fetchAndRenderCompetition(asin) {
+        const container = document.getElementById('competition-container');
+        if (!container) return;
+
+        try {
+            // Folosim POST pentru a trimite ASIN-ul în body, conform așteptărilor n8n
+            const response = await fetch(COMPETITION_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ asin: asin })
+            });
+
+            if (!response.ok) throw new Error('Eroare la preluarea datelor de competiție');
+            
+            const data = await response.json();
+            container.innerHTML = templates.competition(data);
+        } catch (error) {
+            console.error('Eroare competiție:', error);
+            container.innerHTML = `<div class="p-8 text-center text-red-500">Nu s-au putut încărca produsele concurente.</div>`;
+        }
+    }
+
+    // --- MODIFICAT: renderView ---
     async function renderView(viewId, context = {}) {
         let html = '';
         mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă...</div>`;
@@ -405,26 +515,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!productDetails.images || !Array.isArray(productDetails.images)) {
                         productDetails.images = [];
                     }
-                    
-                    // --- FIX: De-duplicare la încărcarea inițială ---
                     productDetails.images = [...new Set(productDetails.images)];
                     
                     state.editedProductData = JSON.parse(JSON.stringify(productDetails));
                     state.activeVersionKey = 'origin';
+                    
+                    // Generăm HTML-ul principal (care include placeholder-ul <div id="competition-container">)
                     html = templates.produsDetaliu(product, state.editedProductData);
+                    mainContent.innerHTML = html;
+                    setActiveView(viewId);
+
+                    // --- MODIFICARE: Apelăm funcțiile post-randare ---
+                    // 1. Inițiem galeria de imagini 'origin'
+                    const galleryContainer = document.getElementById('image-gallery-container');
+                    if (galleryContainer) {
+                        galleryContainer.innerHTML = renderImageGallery(state.editedProductData.images);
+                        initializeSortable();
+                    }
+                    // 2. Începem preluarea datelor despre competiție (fără a bloca)
+                    fetchAndRenderCompetition(product.asin);
+                    return; // Ieșim devreme pentru a nu suprascrie innerHTML
                 }
                 break;
         }
+        
+        // Acest 'innerHTML' este pentru toate celelalte view-uri
         mainContent.innerHTML = html;
         setActiveView(viewId);
-        
-        if (viewId === 'produs-detaliu') {
-            const galleryContainer = document.getElementById('image-gallery-container');
-            if (galleryContainer) {
-                galleryContainer.innerHTML = renderImageGallery(state.editedProductData.images);
-                initializeSortable();
-            }
-        }
     }
     
     sidebarButtons.forEach(button => button.addEventListener('click', () => renderView(button.dataset.view)));
@@ -439,8 +556,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const languageOption = target.closest('.language-option');
         const dropdownToggle = target.closest('.dropdown-toggle');
         const descModeButton = target.closest('[data-action="toggle-description-mode"]');
-        
-        // --- MODIFICAT: Logica de click pe thumbnail ---
         const thumbnail = target.closest('[data-action="select-thumbnail"]');
 
         if (commandCard) {
@@ -490,7 +605,6 @@ document.addEventListener('DOMContentLoaded', () => {
             descModeButton.classList.add('bg-blue-600', 'text-white');
             descModeButton.classList.remove('hover:bg-gray-100');
 
-        // --- MODIFICAT: Logica de click pe thumbnail ---
         } else if (thumbnail) {
             const newImageSrc = thumbnail.dataset.src;
             if (!newImageSrc) return;
@@ -498,9 +612,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const mainImage = document.getElementById('main-image');
             if (mainImage) mainImage.src = newImageSrc;
             
-            // Actualizează chenarul albastru căutând imaginea potrivită
             document.querySelectorAll('.thumbnail-image').forEach(img => {
-                const isSelected = img.src === newImageSrc;
+                const parent = img.closest('[data-image-src]');
+                const isSelected = parent && parent.dataset.imageSrc === newImageSrc;
                 img.classList.toggle('border-2', isSelected);
                 img.classList.toggle('border-blue-600', isSelected);
             });

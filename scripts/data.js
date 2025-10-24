@@ -7,7 +7,7 @@
 const productCache = {};
 const DATA_FETCH_URL = 'https://automatizare.comandat.ro/webhook/5a447557-8d52-463e-8a26-5902ccee8177';
 const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/39e78a55-36c9-4948-aa2d-d9301c996562';
-const PRODUCT_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/eecb8515-6092-47b0-af12-f10fb23407fa'; 
+const PRODUCT_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/eecb8515-6092-47b0-af12-f10fb23407fa';
 
 // --- MANAGEMENT STARE APLICAȚIE ---
 export const AppState = {
@@ -16,12 +16,12 @@ export const AppState = {
 
     // --- Modificat ---
     // Citește din cache-ul in-memorie
-    getProductDetails: (asin) => productCache[asin] || null, 
+    getProductDetails: (asin) => productCache[asin] || null,
 
     // --- Modificat ---
     // Scrie în cache-ul in-memorie, nu în sessionStorage
     setProductDetails: (asin, data) => {
-        productCache[asin] = data; 
+        productCache[asin] = data;
     },
 };
 
@@ -30,10 +30,10 @@ function processServerData(data) {
     return Object.keys(data).map(commandId => ({
         id: commandId,
         name: `Comanda #${commandId.substring(0, 12)}`,
-        products: (data[commandId] || []).map(p => ({ 
-            id: p.productsku, 
-            asin: p.asin, 
-            expected: p.orderedquantity || 0, 
+        products: (data[commandId] || []).map(p => ({
+            id: p.productsku,
+            asin: p.asin,
+            expected: p.orderedquantity || 0,
             found: (p.bncondition || 0) + (p.vgcondition || 0) + (p.gcondition || 0) + (p.broken || 0),
             manifestsku: p.manifestsku || null // <-- MODIFICARE: Am adăugat manifestsku
         }))
@@ -74,25 +74,65 @@ export async function fetchProductDetailsInBulk(asins) {
     return results;
 }
 
+// --- MODIFICAT: Funcția saveProductDetails ---
 export async function saveProductDetails(asin, updatedData) {
-    const payload = { 
-        asin, 
-        updatedData
-    };
-    try {
-        const response = await fetch(PRODUCT_UPDATE_URL, { 
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        });
-        if (!response.ok) { 
-            console.error(`Salvarea a eșuat:`, await response.text()); 
-            return false; 
+
+    // --- MODIFICARE: Funcția de "escapare" ---
+    function makeQueryFriendly(str) {
+        // Înlocuiește fiecare apostrof cu un spațiu
+        // Verifică dacă str este null sau undefined înainte de a apela replace
+        return str ? str.replace(/'/g, " ") : str;
+    }
+
+    // Creăm o copie profundă pentru a nu modifica obiectul original din state/cache
+    const processedData = JSON.parse(JSON.stringify(updatedData));
+
+    // Procesează titlul și descrierea principală (dacă există)
+    if (processedData.title) {
+        processedData.title = makeQueryFriendly(processedData.title);
+    }
+    if (processedData.description) {
+        processedData.description = makeQueryFriendly(processedData.description);
+    }
+
+    // Procesează titlurile și descrierile din other_versions (dacă există)
+    if (processedData.other_versions) {
+        for (const langCode in processedData.other_versions) {
+            const version = processedData.other_versions[langCode];
+            if (version.title) {
+                version.title = makeQueryFriendly(version.title);
+            }
+            if (version.description) {
+                version.description = makeQueryFriendly(version.description);
+            }
         }
+    }
+    // --- SFÂRȘIT MODIFICARE ---
+
+    // Trimitem datele procesate
+    const payload = {
+        asin,
+        updatedData: processedData // Folosim datele procesate
+    };
+
+    try {
+        const response = await fetch(PRODUCT_UPDATE_URL, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            console.error(`Salvarea a eșuat:`, await response.text());
+            return false;
+        }
+
+        // Salvăm în cache datele ORIGINALE, ne-modificate
         AppState.setProductDetails(asin, updatedData);
+
         return true;
-    } catch (error) { 
-        console.error('Eroare de rețea la salvare:', error); 
-        return false; 
+    } catch (error) {
+        console.error('Eroare de rețea la salvare:', error);
+        return false;
     }
 }
+// --- SFÂRȘITUL FUNCȚIEI saveProductDetails ---

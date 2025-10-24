@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const COMPETITION_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/db241e9f-fe67-40bf-89ae-d06f13b90d09';
     // --- NOU: URL pentru generare titlu ---
     const TITLE_GENERATION_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/0bc8e16e-2ba8-4c3d-ba66-9eb8898ac0ef'; 
+    // --- NOU: URL pentru update ASIN ---
+    const ASIN_UPDATE_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/5f107bd7-cc2b-40b7-8bbf-5e3a48667405';
+
 
     const state = {
         currentCommandId: null,
@@ -17,8 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
         activeVersionKey: 'origin',
         descriptionEditorMode: 'raw',
         sortableInstance: null,
-        // --- NOU: Stocăm datele de competiție ---
-        competitionDataCache: null 
+        competitionDataCache: null, 
+        productScrollPosition: 0,
+        currentSearchQuery: '', 
+        currentView: 'comenzi', 
+        searchTimeout: null     
     };
 
     const languages = {
@@ -36,6 +42,55 @@ document.addEventListener('DOMContentLoaded', () => {
     const languageNameToCodeMap = {};
     for (const [code, name] of Object.entries(languages)) {
         languageNameToCodeMap[name.toLowerCase()] = code.toUpperCase();
+    }
+
+    function getLevenshteinDistance(a, b) {
+        if (a.length === 0) return b.length;
+        if (b.length === 0) return a.length;
+
+        const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
+
+        for (let i = 0; i <= a.length; i++) { matrix[0][i] = i; }
+        for (let j = 0; j <= b.length; j++) { matrix[j][0] = j; }
+
+        for (let j = 1; j <= b.length; j++) {
+            for (let i = 1; i <= a.length; i++) {
+                const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+                matrix[j][i] = Math.min(
+                    matrix[j][i - 1] + 1,     // deletion
+                    matrix[j - 1][i] + 1,     // insertion
+                    matrix[j - 1][i - 1] + indicator // substitution
+                );
+            }
+        }
+        return matrix[b.length][a.length];
+    }
+
+    function fuzzySearch(query, target) {
+        if (!query) return true; 
+        if (!target) return false; 
+
+        const queryWords = query.toLowerCase().split(' ').filter(w => w.length > 0);
+        const targetText = target.toLowerCase();
+        const targetWords = targetText.split(' ').filter(w => w.length > 0);
+        
+        targetWords.push(targetText);
+
+        return queryWords.every(queryWord => {
+            return targetWords.some(targetWord => {
+                const distance = getLevenshteinDistance(queryWord, targetWord);
+                
+                let tolerance = 0;
+                if (queryWord.length <= 2) tolerance = 0; 
+                else if (queryWord.length <= 4) tolerance = 1; 
+                else tolerance = 2; 
+
+                if (targetWord.includes(queryWord)) {
+                    return true;
+                }
+                return distance <= tolerance;
+            });
+        });
     }
 
     function initializeSortable() {
@@ -182,7 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
             parentView = 'comenzi';
         }
         sidebarButtons.forEach(btn => btn.classList.toggle('active-tab', btn.dataset.view === parentView));
-        mainContent.scrollTop = 0;
     }
 
     const templates = {
@@ -213,12 +267,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="text-sm text-gray-500">${products.length} produse</p>
                 </div>`;
             }).join('');
+            
+            const noResultsHTML = paletiHTML.length === 0 ? `<p class="col-span-full text-gray-500">Nu s-au găsit produse care să corespundă căutării.</p>` : paletiHTML;
+
             return `
-            <header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center">
-                <button data-action="back-to-comenzi" class="mr-4 p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button>
-                <h1 class="text-xl font-bold text-gray-800">Paleți din ${command.name}</h1>
+            <header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center space-x-4">
+                <button data-action="back-to-comenzi" class="p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button>
+                <h1 class="text-xl font-bold text-gray-800 whitespace-nowrap">${command.name}</h1>
+                <div class="flex-1 relative">
+                    <span class="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                    <input id="product-search-input" type="text" placeholder="Caută după titlu sau ASIN..." class="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+                </div>
             </header>
-            <div class="p-6 sm:p-8"><div class="flex flex-wrap gap-4">${paletiHTML}</div></div>`;
+            <div class="p-6 sm:p-8"><div class="flex flex-wrap gap-4">${noResultsHTML}</div></div>`;
         },
 
         produse: (command, details, manifestSKU) => {
@@ -230,10 +291,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const d = details[p.asin];
                 return `<div class="flex items-center gap-4 bg-white p-3 rounded-md shadow-sm cursor-pointer hover:bg-gray-50" data-product-id="${p.id}"><img src="${d?.images?.[0] || ''}" class="w-16 h-16 object-cover rounded-md bg-gray-200"><div class="flex-1"><p class="font-semibold line-clamp-2">${d?.title || 'N/A'}</p><p class="text-sm text-gray-500">${p.asin}</p></div><div class="text-right"><p class="font-bold text-lg">${p.found}/${p.expected}</p></div><span class="material-icons text-gray-400">chevron_right</span></div>`;
             }).join('');
+            
+            const noResultsHTML = productsToShow.length === 0 ? `<p class="col-span-full text-gray-500">Nu s-au găsit produse care să corespundă căutării.</p>` : productsHTML;
+
             return `
-            <header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center">
-                <button data-action="back-to-paleti" class="mr-4 p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button> <h1 class="text-xl font-bold text-gray-800">Produse din ${manifestSKU}</h1> </header>
-            <div class="p-4 space-y-2">${productsHTML}</div>`;
+            <header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center space-x-4">
+                <button data-action="back-to-paleti" class="p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button>
+                <h1 class="text-xl font-bold text-gray-800 whitespace-nowrap">Produse din ${manifestSKU}</h1>
+                <div class="flex-1 relative">
+                    <span class="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                    <input id="product-search-input" type="text" placeholder="Caută după titlu sau ASIN..." class="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+                </div>
+            </header>
+            <div class="p-4 space-y-2">${noResultsHTML}</div>`;
         },
         
         competition: (competitionData) => {
@@ -336,7 +406,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="bg-white p-4 rounded-xl shadow-sm space-y-4">
                             <div><label class="text-sm font-medium text-gray-500">Brand</label><input id="product-brand" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${details.brand || ''}"></div>
                             <div><label class="text-sm font-medium text-gray-500">Preț estimat</label><input id="product-price" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${details.price || ''}"></div>
-                            <div><label class="text-sm font-medium text-gray-500">ASIN</label><input id="product-asin" class="mt-1 block w-full bg-transparent p-0 border-0 border-b-2" type="text" value="${product.asin}" readonly></div>
+                            
+                            <div>
+                                <div class="flex justify-between items-center">
+                                    <label for="product-asin" class="text-sm font-medium text-gray-500">ASIN</label>
+                                    <button data-action="edit-asin" data-productsku="${product.id}" data-old-asin="${product.asin}" 
+                                            class="px-3 py-1 text-xs font-semibold text-blue-600 bg-blue-100 rounded-full hover:bg-blue-200 transition-colors">
+                                        Editează ASIN
+                                    </button>
+                                </div>
+                                <input id="product-asin" class="mt-1 block w-full bg-gray-100 p-2 border-0 rounded-md text-gray-700" type="text" value="${product.asin}" readonly>
+                            </div>
+
                         </div>
                     </div>
                     
@@ -499,6 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function renderView(viewId, context = {}) {
+        state.currentView = viewId; 
         let html = '';
         let product = null; 
         mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă...</div>`;
@@ -516,7 +598,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (commandForPaleti) {
                         const asinsForPaleti = commandForPaleti.products.map(p => p.asin);
                         const detailsForPaleti = await fetchProductDetailsInBulk(asinsForPaleti);
-                        html = templates.paleti(commandForPaleti, detailsForPaleti);
+
+                        let commandToRender = commandForPaleti;
+                        const query = state.currentSearchQuery.toLowerCase().trim();
+                        if (query) {
+                            const filteredProducts = commandForPaleti.products.filter(p => 
+                                fuzzySearch(query, detailsForPaleti[p.asin]?.title || '') || 
+                                fuzzySearch(query, p.asin)
+                            );
+                            commandToRender = { ...commandForPaleti, products: filteredProducts };
+                        }
+                        html = templates.paleti(commandToRender, detailsForPaleti);
                     } else {
                          html = '<div class="p-6 text-red-500">Eroare: Comanda nu a fost găsită.</div>';
                     }
@@ -526,7 +618,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (command && context.manifestSKU) { 
                         const asins = command.products.map(p => p.asin);
                         const details = await fetchProductDetailsInBulk(asins);
-                        html = templates.produse(command, details, context.manifestSKU); 
+
+                        let commandToRender = command;
+                        const query = state.currentSearchQuery.toLowerCase().trim();
+                        if (query) {
+                            const filteredProducts = command.products.filter(p => 
+                                fuzzySearch(query, details[p.asin]?.title || '') || 
+                                fuzzySearch(query, p.asin)
+                            );
+                            commandToRender = { ...command, products: filteredProducts };
+                        }
+                        html = templates.produse(commandToRender, details, context.manifestSKU);
                     } else {
                          console.error('Eroare: commandId sau manifestSKU lipsă');
                          html = '<div class="p-6 text-red-500">Eroare: Datele pentru afișarea produselor sunt incomplete.</div>';
@@ -567,7 +669,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         mainContent.innerHTML = html;
+
+        if (viewId === 'produse' && state.productScrollPosition > 0) {
+            mainContent.scrollTop = state.productScrollPosition;
+        } else {
+            mainContent.scrollTop = 0;
+        }
+
+        if (viewId !== 'produse' && viewId !== 'produs-detaliu') {
+            state.productScrollPosition = 0;
+        }
+
         setActiveView(viewId); 
+
+        const searchInput = document.getElementById('product-search-input');
+        if (searchInput) {
+            searchInput.value = state.currentSearchQuery;
+            if (document.activeElement !== searchInput) {
+            }
+        }
 
         if (viewId === 'produs-detaliu' && product) {
             const galleryContainer = document.getElementById('image-gallery-container');
@@ -595,6 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const thumbnail = target.closest('[data-action="select-thumbnail"]');
 
         if (commandCard) {
+            state.currentSearchQuery = ''; 
             state.currentCommandId = commandCard.dataset.commandId;
             state.currentManifestSKU = null;
             state.currentProductId = null;
@@ -606,6 +727,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
         
         } else if (productCard) {
+            state.productScrollPosition = mainContent.scrollTop; 
             state.currentProductId = productCard.dataset.productId;
             await renderView('produs-detaliu', { 
                 commandId: state.currentCommandId, 
@@ -674,6 +796,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
             }
             
+            if (action === 'edit-asin') {
+                const productsku = actionButton.dataset.productsku;
+                const oldAsin = actionButton.dataset.oldAsin;
+                
+                const newAsin = prompt("Introduceți noul ASIN:", oldAsin);
+
+                if (!newAsin || newAsin.trim() === '' || newAsin.trim() === oldAsin) {
+                    return; // Anulat, gol sau neschimbat
+                }
+
+                const confirmation = confirm("Atenție!\n\nSchimbarea ASIN-ului va reîncărca datele acestui produs și poate modifica titlul, pozele sau descrierea. Datele nesalvate (titlu, descriere, etc.) se vor pierde.\n\nSigur doriți să continuați?");
+
+                if (!confirmation) {
+                    return;
+                }
+
+                // <-- MODIFICARE: Am adăugat orderId în payload -->
+                const payload = {
+                    productsku: productsku,
+                    asin_vechi: oldAsin,
+                    asin_nou: newAsin.trim(),
+                    orderId: state.currentCommandId 
+                };
+                // <-- SFÂRȘIT MODIFICARE -->
+
+                try {
+                    const response = await fetch(ASIN_UPDATE_WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Eroare HTTP: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        alert("ASIN-ul a fost actualizat cu succes! Se reîncarcă datele...");
+                        await fetchDataAndSyncState();
+                        await renderView('produs-detaliu', { 
+                            commandId: state.currentCommandId, 
+                            productId: state.currentProductId 
+                        });
+                    } else {
+                        alert(`Eroare la actualizare: ${result.message || 'Răspuns invalid de la server.'}`);
+                    }
+                } catch (error) {
+                    console.error('Eroare la actualizarea ASIN-ului:', error);
+                    alert(`A apărut o eroare de rețea: ${error.message}`);
+                }
+            }
+
             if (action === 'delete-image') {
                 const imageSrc = actionButton.dataset.imageSrc;
                 if (!imageSrc) return;
@@ -921,7 +1096,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    mainContent.addEventListener('input', (event) => {
+    mainContent.addEventListener('input', async (event) => {
         if (event.target.id === 'language-search') {
             const filter = event.target.value.toLowerCase();
             const links = document.querySelectorAll('#language-list .language-option');
@@ -929,6 +1104,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 const text = link.textContent.toLowerCase();
                 link.style.display = text.includes(filter) ? '' : 'none';
             });
+        }
+        else if (event.target.id === 'product-search-input') {
+            state.currentSearchQuery = event.target.value;
+            state.productScrollPosition = 0; 
+
+            if (state.searchTimeout) {
+                clearTimeout(state.searchTimeout);
+            }
+            
+            state.searchTimeout = setTimeout(async () => {
+                const currentView = state.currentView;
+                
+                if (currentView === 'paleti') {
+                    await renderView('paleti', { commandId: state.currentCommandId });
+                } else if (currentView === 'produse') {
+                    await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
+                }
+
+                const searchInput = document.getElementById('product-search-input');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+                }
+            }, 300); 
         }
     });
     

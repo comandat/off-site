@@ -185,11 +185,113 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const templates = {
-        comenzi: () => { /* ... cod nemodificat ... */ },
-        import: () => { /* ... cod nemodificat ... */ },
-        paleti: (command, details) => { /* ... cod nemodificat ... */ },
-        produse: (command, details, manifestSKU) => { /* ... cod nemodificat ... */ },
-        competition: (competitionData) => { /* ... cod nemodificat ... */ },
+        comenzi: () => {
+            const commands = AppState.getCommands();
+            const commandsHTML = commands.length > 0
+                ? commands.map(cmd => `<div class="bg-white p-4 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow" data-command-id="${cmd.id}"><h3 class="font-bold text-gray-800">${cmd.name}</h3><p class="text-sm text-gray-500">${cmd.products.length} produse</p></div>`).join('')
+                : `<p class="col-span-full text-gray-500">Nu există comenzi de afișat.</p>`;
+            return `<div class="p-6 sm:p-8"><h2 class="text-3xl font-bold text-gray-800 mb-6">Panou de Comenzi</h2><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${commandsHTML}</div></div>`;
+        },
+        import: () => `<div class="p-6 sm:p-8"><h2 class="text-3xl font-bold text-gray-800 mb-6">Import Comandă Nouă</h2><div class="max-w-md bg-white p-8 rounded-lg shadow-md"><form id="upload-form"><div class="mb-5"><label for="zip-file" class="block mb-2 text-sm font-medium">Manifest (.zip):</label><input type="file" id="zip-file" name="zipFile" accept=".zip" required class="w-full text-sm border-gray-300 rounded-lg cursor-pointer bg-gray-50"></div><div class="mb-6"><label for="pdf-file" class="block mb-2 text-sm font-medium">Factura (.pdf):</label><input type="file" id="pdf-file" name="pdfFile" accept=".pdf" required class="w-full text-sm border-gray-300 rounded-lg cursor-pointer bg-gray-50"></div><p id="upload-status" class="mt-4 text-center text-sm font-medium min-h-[20px]"></p><button id="upload-button" type="submit" class="w-full mt-2 flex justify-center items-center px-4 py-3 text-lg font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300"><span class="button-text">Trimite fișierele 🚀</span><div class="button-loader hidden w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div></button></form></div></div>`,
+        
+        paleti: (command, details) => {
+            const paleti = {};
+            command.products.forEach(p => {
+                const sku = p.manifestsku || 'No ManifestSKU';
+                if (!paleti[sku]) paleti[sku] = [];
+                paleti[sku].push(p);
+            });
+            const paletiHTML = Object.entries(paleti).map(([sku, products]) => {
+                const firstProduct = products[0];
+                const firstProductDetails = firstProduct ? details[firstProduct.asin] : null;
+                const firstImage = firstProductDetails?.images?.[0] || '';
+                return `
+                <div class="bg-white p-4 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow w-40 flex flex-col items-center" data-manifest-sku="${sku}">
+                    <img src="${firstImage}" alt="Imagine palet" class="w-32 h-32 object-contain rounded-md bg-gray-200 mb-4">
+                    <h3 class="font-bold text-gray-800 text-center">${sku}</h3>
+                    <p class="text-sm text-gray-500">${products.length} produse</p>
+                </div>`;
+            }).join('');
+            return `
+            <header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center">
+                <button data-action="back-to-comenzi" class="mr-4 p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button>
+                <h1 class="text-xl font-bold text-gray-800">Paleți din ${command.name}</h1>
+            </header>
+            <div class="p-6 sm:p-8"><div class="flex flex-wrap gap-4">${paletiHTML}</div></div>`;
+        },
+
+        produse: (command, details, manifestSKU) => {
+             const productsToShow = command.products.filter(p => {
+                 const sku = p.manifestsku || 'No ManifestSKU';
+                 return sku === manifestSKU;
+             });
+             const productsHTML = productsToShow.map(p => {
+                const d = details[p.asin];
+                return `<div class="flex items-center gap-4 bg-white p-3 rounded-md shadow-sm cursor-pointer hover:bg-gray-50" data-product-id="${p.id}"><img src="${d?.images?.[0] || ''}" class="w-16 h-16 object-cover rounded-md bg-gray-200"><div class="flex-1"><p class="font-semibold line-clamp-2">${d?.title || 'N/A'}</p><p class="text-sm text-gray-500">${p.asin}</p></div><div class="text-right"><p class="font-bold text-lg">${p.found}/${p.expected}</p></div><span class="material-icons text-gray-400">chevron_right</span></div>`;
+            }).join('');
+            return `
+            <header class="sticky top-0 z-10 bg-white shadow-sm p-4 flex items-center">
+                <button data-action="back-to-paleti" class="mr-4 p-2 rounded-full hover:bg-gray-100"><span class="material-icons">arrow_back</span></button> <h1 class="text-xl font-bold text-gray-800">Produse din ${manifestSKU}</h1> </header>
+            <div class="p-4 space-y-2">${productsHTML}</div>`;
+        },
+        
+        competition: (competitionData) => {
+            let cardsHTML = '';
+            for (let i = 1; i <= 5; i++) {
+                const name = competitionData[`productname_${i}`];
+                if (!name) break; 
+
+                const image = competitionData[`productimage_${i}`] || '';
+                const url = competitionData[`producturl_${i}`] || '#';
+                const rating = competitionData[`rating_${i}`];
+                const reviews = competitionData[`reviewscount_${i}`] || '';
+                const oldPrice = competitionData[`oldprice_${i}`];
+                const currentPrice = competitionData[`currentprice_${i}`] || '';
+                const promoLabel = competitionData[`promotionlabel_${i}`];
+                const dealLabel = competitionData[`dealtype_${i}`];
+
+                let labelHTML = '';
+                const labelText = promoLabel || dealLabel;
+                if (labelText) {
+                    labelHTML = `<span class="absolute top-2 left-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">${labelText}</span>`;
+                }
+                
+                let priceHTML = '';
+                if (oldPrice) {
+                    priceHTML += `<p class="text-sm text-gray-500 line-through">${oldPrice}</p>`;
+                }
+                priceHTML += `<p class="text-xl font-bold text-red-600">${currentPrice}</p>`;
+
+                cardsHTML += `
+                    <div class="w-full max-w-xs bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
+                        <div class="relative w-full h-48">
+                            <img src="${image}" alt="${name}" class="w-full h-full object-contain p-2">
+                            ${labelHTML}
+                        </div>
+                        <div class="p-4 flex-1 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center space-x-1 mb-1">
+                                    ${renderCompetitionStars(rating)}
+                                    <span class="text-sm text-gray-500">${reviews}</span>
+                                </div>
+                                <h3 class="font-semibold text-gray-800 text-sm h-20 overflow-hidden line-clamp-3">${name}</h3>
+                            </div>
+                            <div>
+                                <div class="mt-2 mb-3">
+                                    ${priceHTML}
+                                </div>
+                                <a href="${url}" target="_blank" rel="noopener noreferrer" 
+                                   class="block w-full text-center px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors">
+                                   Vezi Produsul
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">${cardsHTML}</div>`;
+        },
         
         produsDetaliu: (product, details) => {
             

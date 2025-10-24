@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarButtons = document.querySelectorAll('.sidebar-btn');
     const N8N_UPLOAD_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/d92efbca-eaf1-430e-8748-cc6466c82c6e';
     const COMPETITION_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/db241e9f-fe67-40bf-89ae-d06f13b90d09';
-    // --- MODIFICAT: URL-ul pentru generare titlu ---
+    // --- NOU: URL pentru generare titlu ---
     const TITLE_GENERATION_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/0bc8e16e-2ba8-4c3d-ba66-9eb8898ac0ef'; 
 
     const state = {
@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeVersionKey: 'origin',
         descriptionEditorMode: 'raw',
         sortableInstance: null,
+        // --- NOU: Stocăm datele de competiție ---
         competitionDataCache: null 
     };
 
@@ -274,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     ${renderCompetitionStars(rating)}
                                     <span class="text-sm text-gray-500">${reviews}</span>
                                 </div>
-                                <h3 class="font-semibold text-gray-800 text-sm h-20 overflow-hidden line-clamp-3">${name}</h3>
+                                <h3 data-competition-title="${i}" class="font-semibold text-gray-800 text-sm h-20 overflow-hidden line-clamp-3">${name}</h3>
                             </div>
                             <div>
                                 <div class="mt-2 mb-3">
@@ -499,68 +500,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function renderView(viewId, context = {}) {
         let html = '';
+        let product = null; 
         mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă...</div>`;
-        switch(viewId) {
-            case 'comenzi': 
-                await fetchDataAndSyncState(); 
-                html = templates.comenzi(); 
-                break;
-            case 'import': 
-                html = templates.import(); 
-                break;
-            case 'paleti':
-                const commandForPaleti = AppState.getCommands().find(c => c.id === context.commandId);
-                if (commandForPaleti) {
-                    const asinsForPaleti = commandForPaleti.products.map(p => p.asin);
-                    const detailsForPaleti = await fetchProductDetailsInBulk(asinsForPaleti);
-                    html = templates.paleti(commandForPaleti, detailsForPaleti);
-                }
-                break;
-            case 'produse':
-                const command = AppState.getCommands().find(c => c.id === context.commandId);
-                if (command && context.manifestSKU) { 
-                    const asins = command.products.map(p => p.asin);
-                    const details = await fetchProductDetailsInBulk(asins);
-                    html = templates.produse(command, details, context.manifestSKU); 
-                } else {
-                     console.error('Eroare: commandId sau manifestSKU lipsă');
-                     await renderView('comenzi');
-                     return;
-                }
-                break;
-            case 'produs-detaliu':
-                state.competitionDataCache = null; 
-                const cmd = AppState.getCommands().find(c => c.id === context.commandId);
-                const product = cmd?.products.find(p => p.id === context.productId);
-                if (product) {
-                    const detailsMap = await fetchProductDetailsInBulk([product.asin]);
-                    const productDetails = detailsMap[product.asin];
-                    
-                    if (!productDetails.images || !Array.isArray(productDetails.images)) {
-                        productDetails.images = [];
+        try { 
+            switch(viewId) {
+                case 'comenzi': 
+                    await fetchDataAndSyncState(); 
+                    html = templates.comenzi(); 
+                    break;
+                case 'import': 
+                    html = templates.import(); 
+                    break;
+                 case 'paleti':
+                    const commandForPaleti = AppState.getCommands().find(c => c.id === context.commandId);
+                    if (commandForPaleti) {
+                        const asinsForPaleti = commandForPaleti.products.map(p => p.asin);
+                        const detailsForPaleti = await fetchProductDetailsInBulk(asinsForPaleti);
+                        html = templates.paleti(commandForPaleti, detailsForPaleti);
+                    } else {
+                         html = '<div class="p-6 text-red-500">Eroare: Comanda nu a fost găsită.</div>';
                     }
-                    productDetails.images = [...new Set(productDetails.images)];
-                    
-                    state.editedProductData = JSON.parse(JSON.stringify(productDetails));
-                    state.activeVersionKey = 'origin';
-                    
-                    html = templates.produsDetaliu(product, state.editedProductData);
-                    mainContent.innerHTML = html;
-                    setActiveView(viewId);
+                    break;
+                case 'produse':
+                    const command = AppState.getCommands().find(c => c.id === context.commandId);
+                    if (command && context.manifestSKU) { 
+                        const asins = command.products.map(p => p.asin);
+                        const details = await fetchProductDetailsInBulk(asins);
+                        html = templates.produse(command, details, context.manifestSKU); 
+                    } else {
+                         console.error('Eroare: commandId sau manifestSKU lipsă');
+                         html = '<div class="p-6 text-red-500">Eroare: Datele pentru afișarea produselor sunt incomplete.</div>';
+                    }
+                    break;
+                case 'produs-detaliu':
+                    state.competitionDataCache = null; 
+                    const cmd = AppState.getCommands().find(c => c.id === context.commandId);
+                    product = cmd?.products.find(p => p.id === context.productId); 
+                    if (product) {
+                        const detailsMap = await fetchProductDetailsInBulk([product.asin]);
+                        const productDetails = detailsMap[product.asin];
+                        
+                        if (!productDetails.images || !Array.isArray(productDetails.images)) {
+                            productDetails.images = [];
+                        }
+                        productDetails.images = [...new Set(productDetails.images)];
+                        
+                        state.editedProductData = JSON.parse(JSON.stringify(productDetails));
+                        state.activeVersionKey = 'origin';
+                        
+                        html = templates.produsDetaliu(product, state.editedProductData);
+                    } else {
+                         html = '<div class="p-6 text-red-500">Eroare: Produsul nu a fost găsit.</div>';
+                    }
+                    break; 
+                default:
+                     html = `<div class="p-6 text-orange-500">View necunoscut: ${viewId}</div>`;
+            }
+        } catch (error) {
+             console.error(`Eroare în renderView pentru ${viewId}:`, error);
+             html = `<div class="p-6 text-red-500">A apărut o eroare la randarea paginii. Verificați consola.</div>`;
+        }
 
-                    const galleryContainer = document.getElementById('image-gallery-container');
-                    if (galleryContainer) {
-                        galleryContainer.innerHTML = renderImageGallery(state.editedProductData.images);
-                        initializeSortable();
-                    }
-                    fetchAndRenderCompetition(product.asin);
-                    return;
-                }
-                break;
+        if (typeof html !== 'string') {
+            console.error(`renderView: Variabila 'html' nu este un string valid (este ${typeof html}). Folosind fallback.`);
+            html = '<div class="p-6 text-red-500">Eroare internă la generarea conținutului.</div>';
         }
         
         mainContent.innerHTML = html;
-        setActiveView(viewId);
+        setActiveView(viewId); 
+
+        if (viewId === 'produs-detaliu' && product) {
+            const galleryContainer = document.getElementById('image-gallery-container');
+            if (galleryContainer) {
+                galleryContainer.innerHTML = renderImageGallery(state.editedProductData.images);
+                initializeSortable();
+            }
+            fetchAndRenderCompetition(product.asin);
+        }
     }
     
     sidebarButtons.forEach(button => button.addEventListener('click', () => renderView(button.dataset.view)));
@@ -578,25 +594,138 @@ document.addEventListener('DOMContentLoaded', () => {
         const descModeButton = target.closest('[data-action="toggle-description-mode"]');
         const thumbnail = target.closest('[data-action="select-thumbnail"]');
 
-        if (commandCard) { /* ... cod nemodificat ... */ }
-        else if (palletCard) { /* ... cod nemodificat ... */ }
-        else if (productCard) { /* ... cod nemodificat ... */ }
-        else if (versionButton) { loadTabData(versionButton.dataset.versionKey); }
-        else if (descModeButton) { /* ... cod nemodificat ... */ }
-        else if (thumbnail) { /* ... cod nemodificat ... */ }
-        else if (actionButton) {
+        if (commandCard) {
+            state.currentCommandId = commandCard.dataset.commandId;
+            state.currentManifestSKU = null;
+            state.currentProductId = null;
+            await renderView('paleti', { commandId: state.currentCommandId });
+        
+        } else if (palletCard) { 
+            state.currentManifestSKU = palletCard.dataset.manifestSku;
+            state.currentProductId = null;
+            await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
+        
+        } else if (productCard) {
+            state.currentProductId = productCard.dataset.productId;
+            await renderView('produs-detaliu', { 
+                commandId: state.currentCommandId, 
+                productId: state.currentProductId
+            });
+        
+        } else if (versionButton) {
+            loadTabData(versionButton.dataset.versionKey);
+        
+        } else if (descModeButton) {
+            const mode = descModeButton.dataset.mode;
+            if (mode === state.descriptionEditorMode) return; 
+
+            const rawEl = document.getElementById('product-description-raw');
+            const previewEl = document.getElementById('product-description-preview');
+
+            if (mode === 'preview') {
+                previewEl.innerHTML = rawEl.value;
+                rawEl.classList.add('hidden');
+                previewEl.classList.remove('hidden');
+                state.descriptionEditorMode = 'preview';
+            } else {
+                rawEl.value = previewEl.innerHTML;
+                previewEl.classList.add('hidden');
+                rawEl.classList.remove('hidden');
+                state.descriptionEditorMode = 'raw';
+            }
+            
+            document.querySelectorAll('.desc-mode-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('hover:bg-gray-100');
+            });
+            descModeButton.classList.add('bg-blue-600', 'text-white');
+            descModeButton.classList.remove('hover:bg-gray-100');
+
+        } else if (thumbnail) {
+            const newImageSrc = thumbnail.dataset.src;
+            if (!newImageSrc) return;
+
+            const mainImage = document.getElementById('main-image');
+            if (mainImage) mainImage.src = newImageSrc;
+            
+            document.querySelectorAll('.thumbnail-image').forEach(img => {
+                const parent = img.closest('[data-image-src]');
+                const isSelected = parent && parent.dataset.imageSrc === newImageSrc;
+                img.classList.toggle('border-2', isSelected);
+                img.classList.toggle('border-blue-600', isSelected);
+            });
+        
+        } else if (actionButton) {
             const action = actionButton.dataset.action;
             
-            if (action === 'back-to-comenzi') { /* ... cod nemodificat ... */ }
-            if (action === 'back-to-paleti') { /* ... cod nemodificat ... */ }
-            if (action === 'back-to-produse') { /* ... cod nemodificat ... */ }
+            if (action === 'back-to-comenzi') {
+                state.currentCommandId = null;
+                state.currentManifestSKU = null;
+                state.currentProductId = null;
+                await renderView('comenzi');
+             }
+            if (action === 'back-to-paleti') { 
+                state.currentManifestSKU = null;
+                state.currentProductId = null;
+                await renderView('paleti', { commandId: state.currentCommandId });
+            }
+            if (action === 'back-to-produse') {
+                state.currentProductId = null;
+                await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
+            }
             
-            if (action === 'delete-image') { /* ... cod nemodificat ... */ }
-            if (action === 'add-image-url') { /* ... cod nemodificat ... */ }
-            if (action === 'copy-origin-images') { /* ... cod nemodificat ... */ }
-            if (action === 'translate-ai-images') { /* ... cod nemodificat ... */ }
+            if (action === 'delete-image') {
+                const imageSrc = actionButton.dataset.imageSrc;
+                if (!imageSrc) return;
+                
+                let currentImages = getCurrentImagesArray();
+                if (!currentImages) currentImages = [];
+                
+                currentImages = currentImages.filter(img => img !== imageSrc);
+                
+                setCurrentImagesArray(currentImages);
+                
+                const galleryContainer = document.getElementById('image-gallery-container');
+                if (galleryContainer) {
+                    galleryContainer.innerHTML = renderImageGallery(currentImages);
+                    initializeSortable();
+                }
+            }
+            if (action === 'add-image-url') {
+                let currentImages = getCurrentImagesArray();
+                if (!currentImages) currentImages = [];
 
-            // --- MODIFICAT: refresh-ro-title trimite și ASIN ---
+                if (currentImages.length >= 5) {
+                    alert("Puteți adăuga maxim 5 imagini.");
+                    return;
+                }
+
+                const newImageUrl = prompt("Vă rugăm introduceți URL-ul noii imagini:");
+                if (newImageUrl) {
+                    currentImages.push(newImageUrl);
+                    setCurrentImagesArray(currentImages);
+                    
+                    const galleryContainer = document.getElementById('image-gallery-container');
+                    if (galleryContainer) {
+                        galleryContainer.innerHTML = renderImageGallery(currentImages);
+                        initializeSortable();
+                    }
+                }
+            }
+            if (action === 'copy-origin-images') {
+                const originImages = state.editedProductData.images || [];
+                setCurrentImagesArray([...originImages]); 
+                
+                const galleryContainer = document.getElementById('image-gallery-container');
+                if (galleryContainer) {
+                    galleryContainer.innerHTML = renderImageGallery(originImages);
+                    initializeSortable();
+                }
+            }
+            if (action === 'translate-ai-images') {
+                alert('Funcționalitatea de traducere AI a imaginilor va fi implementată curând.');
+            }
+
             if (action === 'refresh-ro-title') {
                 const refreshBtn = actionButton;
                 const refreshIcon = refreshBtn.querySelector('.refresh-icon');
@@ -605,7 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const originTitle = state.editedProductData.title;
                 const originDescription = state.editedProductData.description;
                 const competitionCache = state.competitionDataCache;
-                const currentAsin = document.getElementById('product-asin')?.value; // Preluăm ASIN-ul
+                const currentAsin = document.getElementById('product-asin')?.value; 
                 
                 if (!originTitle || !originDescription || !competitionCache || !currentAsin || TITLE_GENERATION_WEBHOOK_URL === 'URL_AICI_PENTRU_GENERARE_TITLU') {
                     alert('Eroare: Datele necesare (inclusiv ASIN) nu sunt disponibile sau URL-ul webhook nu este configurat.');
@@ -617,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 refreshBtn.disabled = true;
 
                 const payload = {
-                    asin: currentAsin, // Adăugăm ASIN-ul
+                    asin: currentAsin, 
                     title: originTitle,
                     description: originDescription
                 };
@@ -658,19 +787,166 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (action === 'save-product') { /* ... cod nemodificat ... */ }
+            if (action === 'save-product') {
+                actionButton.textContent = 'Se salvează...';
+                actionButton.disabled = true;
+                
+                saveCurrentTabData();
+                
+                state.editedProductData.brand = document.getElementById('product-brand').value;
+                const priceValue = document.getElementById('product-price').value;
+                state.editedProductData.price = priceValue.trim() === '' ? null : priceValue;
+                
+                const payload = JSON.parse(JSON.stringify(state.editedProductData));
 
-        } else if (languageOption) { /* ... cod nemodificat ... */ }
+                if (payload.other_versions) {
+                    const newOtherVersions = {};
+                    for (const [langName, langData] of Object.entries(payload.other_versions)) {
+                        const langCode = (languageNameToCodeMap[langName.toLowerCase()] || langName).toLowerCase();
+                        newOtherVersions[langCode] = langData; 
+                    }
+                    payload.other_versions = newOtherVersions;
+                }
 
-        if (dropdownToggle) { /* ... cod nemodificat ... */ } 
-        else if (!target.closest('.dropdown')) { /* ... cod nemodificat ... */ }
+                const asin = document.getElementById('product-asin').value;
+                
+                const success = await saveProductDetails(asin, payload);
+                
+                if (success) { 
+                    alert('Salvat cu succes!');
+                    await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
+                } else {
+                    alert('Eroare la salvare!');
+                    actionButton.textContent = 'Salvează Modificările';
+                    actionButton.disabled = false;
+                }
+            }
+
+        } else if (languageOption) {
+            event.preventDefault();
+            const langCode = languageOption.dataset.langCode;
+            const asin = document.getElementById('product-asin').value;
+            const webhookUrl = 'https://automatizare.comandat.ro/webhook/43760233-f351-44ea-8966-6f470e063ae7';
+            try {
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asin: asin, language: langCode })
+                });
+                if (response.ok) {
+                    alert(`Traducere pentru ${langCode.toUpperCase()} a fost inițiată.`);
+                } else {
+                    alert('Eroare la inițierea traducerii.');
+                }
+            } catch (error) {
+                console.error('Eroare Webhook:', error);
+                alert('Eroare de rețea la inițierea traducerii.');
+            }
+        }
+
+        if (dropdownToggle) {
+            const dropdownMenu = dropdownToggle.nextElementSibling;
+            dropdownMenu.classList.toggle('hidden');
+        } else if (!target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.add('hidden'));
+        }
     });
 
-    document.addEventListener('click', (event) => { /* ... cod nemodificat pentru lightbox ... */ });
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        const actionButton = target.closest('[data-action]');
+        const lightboxThumbnail = target.closest('[data-action="select-lightbox-thumbnail"]');
 
-    mainContent.addEventListener('input', (event) => { /* ... cod nemodificat ... */ });
+        if (lightboxThumbnail) {
+            const src = lightboxThumbnail.dataset.src;
+            if (!src) return;
+
+            document.getElementById('lightbox-main-image').src = src;
+            document.getElementById('lightbox-copy-btn').dataset.src = src;
+            document.getElementById('lightbox-copy-text').textContent = 'Copiază Link';
+            
+            document.querySelectorAll('.lightbox-thumbnail').forEach(thumb => {
+                thumb.classList.toggle('border-blue-600', thumb.dataset.src === src);
+                thumb.classList.toggle('border-gray-500', thumb.dataset.src !== src);
+            });
+            return;
+        }
+
+        if (actionButton) {
+            const action = actionButton.dataset.action;
+
+            if (action === 'open-lightbox') {
+                 // Găsește imaginea sursă, chiar dacă s-a dat click pe container
+                const imgElement = actionButton.tagName === 'IMG' ? actionButton : actionButton.querySelector('img');
+                const mainImageSrc = imgElement ? imgElement.src : null;
+                if (!mainImageSrc) return;
+                
+                const lightbox = document.getElementById('image-lightbox');
+                const mainImageEl = document.getElementById('lightbox-main-image');
+                const thumbsContainer = document.getElementById('lightbox-thumbs-container');
+                const copyBtn = document.getElementById('lightbox-copy-btn');
+                const copyText = document.getElementById('lightbox-copy-text');
+
+                copyText.textContent = 'Copiază Link';
+                mainImageEl.src = mainImageSrc;
+                copyBtn.dataset.src = mainImageSrc;
+                
+                const currentImages = [...new Set(getCurrentImagesArray() || [])];
+                let thumbsHTML = '';
+                currentImages.forEach(img => {
+                    const isSelected = img === mainImageSrc;
+                    thumbsHTML += `
+                        <img data-action="select-lightbox-thumbnail" data-src="${img}" src="${img}" 
+                             class="w-full h-16 object-cover rounded-md cursor-pointer lightbox-thumbnail border-2 
+                             ${isSelected ? 'border-blue-600' : 'border-gray-500'}">
+                    `;
+                });
+                thumbsContainer.innerHTML = thumbsHTML;
+                
+                lightbox.classList.remove('hidden');
+            }
+            
+            if (action === 'close-lightbox') {
+                document.getElementById('image-lightbox').classList.add('hidden');
+            }
+            
+            if (action === 'copy-lightbox-link') {
+                const src = actionButton.dataset.src;
+                navigator.clipboard.writeText(src).then(() => {
+                    document.getElementById('lightbox-copy-text').textContent = 'Copiat!';
+                }, () => {
+                    alert('Eroare la copiere link.');
+                });
+            }
+        }
+    });
+
+    mainContent.addEventListener('input', (event) => {
+        if (event.target.id === 'language-search') {
+            const filter = event.target.value.toLowerCase();
+            const links = document.querySelectorAll('#language-list .language-option');
+            links.forEach(link => {
+                const text = link.textContent.toLowerCase();
+                link.style.display = text.includes(filter) ? '' : 'none';
+            });
+        }
+    });
     
-    mainContent.addEventListener('submit', async (event) => { /* ... cod nemodificat ... */ });
+    mainContent.addEventListener('submit', async (event) => {
+        if (event.target.id === 'upload-form') {
+            event.preventDefault();
+            const uploadBtn = document.getElementById('upload-button'), btnText = uploadBtn.querySelector('.button-text'), btnLoader = uploadBtn.querySelector('.button-loader'), statusEl = document.getElementById('upload-status'), formData = new FormData(event.target);
+            if (!formData.get('zipFile')?.size || !formData.get('pdfFile')?.size) { statusEl.textContent = 'Selectează ambele fișiere.'; statusEl.className = 'text-red-600'; return; }
+            uploadBtn.disabled = true; btnText.classList.add('hidden'); btnLoader.classList.remove('hidden'); statusEl.textContent = 'Se trimit fișierele...'; statusEl.className = '';
+            try {
+                const response = await fetch(N8N_UPLOAD_WEBHOOK_URL, { method: 'POST', body: formData });
+                if (!response.ok) throw new Error(`Eroare HTTP: ${response.status}`);
+                const resData = await response.json();
+                if (resData.status === 'success') { statusEl.textContent = 'Comanda a fost importată!'; statusEl.className = 'text-green-600'; event.target.reset(); await renderView('comenzi'); } else throw new Error('Eroare server.');
+            } catch (error) { statusEl.textContent = 'A apărut o eroare.'; statusEl.className = 'text-red-600';
+            } finally { uploadBtn.disabled = false; btnText.classList.remove('hidden'); btnLoader.classList.add('hidden'); }
+        }
+    });
 
     renderView('comenzi');
 });

@@ -11,14 +11,14 @@ import { renderImageGallery, initializeSortable, templates } from './templates.j
 import { saveProductDetails } from './data.js';
 
 // --- IMAGE HELPERS ---
-// ... (cod neschimbat)
 export function getCurrentImagesArray() {
     const key = state.activeVersionKey;
     if (key === 'origin') {
         if (!state.editedProductData.images) {
             state.editedProductData.images = [];
         }
-        return state.editedProductData.images;
+        // --- MODIFICARE (de data trecută): Returnează o copie, nu referința ---
+        return [...state.editedProductData.images];
     }
 
     if (!state.editedProductData.other_versions) state.editedProductData.other_versions = {};
@@ -26,7 +26,8 @@ export function getCurrentImagesArray() {
     if (state.editedProductData.other_versions[key].images === undefined) {
         return null;
     }
-    return state.editedProductData.other_versions[key].images;
+    // --- MODIFICARE (de data trecută): Returnează o copie, nu referința ---
+    return [...state.editedProductData.other_versions[key].images];
 }
 
 export function setCurrentImagesArray(imagesArray) {
@@ -41,11 +42,9 @@ export function setCurrentImagesArray(imagesArray) {
 
     state.editedProductData.other_versions[key].images = imagesArray;
 }
-// ... (sfârșit cod neschimbat)
 
 
 // --- TAB DATA MANAGEMENT ---
-// ... (cod neschimbat)
 export function saveCurrentTabData() {
     const titleEl = document.getElementById('product-title');
     if (!titleEl) return;
@@ -82,7 +81,11 @@ export function saveCurrentTabData() {
         thumbsContainer.querySelectorAll('[data-image-src]').forEach(el => {
             currentImages.push(el.dataset.imageSrc);
         });
-        setCurrentImagesArray(currentImages);
+        
+        // --- CORECTURĂ (de data trecută): De-duplicăm array-ul citit din DOM ---
+        const uniqueCurrentImages = [...new Set(currentImages)];
+        setCurrentImagesArray(uniqueCurrentImages);
+        // --- SFÂRȘIT CORECTURĂ ---
     }
 }
 
@@ -147,11 +150,9 @@ export function loadTabData(versionKey) {
         refreshBtn.classList.toggle('hidden', !isRomanianTab);
     }
 }
-// ... (sfârșit cod neschimbat)
 
 
 // --- API CALLS & HANDLERS ---
-// ... (cod neschimbat)
 export async function fetchAndRenderCompetition(asin) {
     const container = document.getElementById('competition-container');
     if (!container) return;
@@ -178,27 +179,82 @@ export async function fetchAndRenderCompetition(asin) {
 export async function handleProductSave(actionButton) {
     actionButton.textContent = 'Se salvează...';
     actionButton.disabled = true;
+    
+    // 1. Salvează datele de pe tab-ul pe care ești acum
     saveCurrentTabData();
+    
+    // 2. Salvează datele globale (brand, preț)
     state.editedProductData.brand = document.getElementById('product-brand').value;
     const priceValue = document.getElementById('product-price').value;
     state.editedProductData.price = priceValue.trim() === '' ? null : priceValue;
     
+    
+    // --- MODIFICARE: Adăugăm o funcție helper pentru padare cu STRING GOL ---
+    /**
+     * Paddează un array de imagini până la o lungime fixă (5) cu "".
+     * @param {(string|null)[]} imagesArray - Array-ul de URL-uri de imagini.
+     * @returns {(string)[]} Un array nou cu lungimea de 5.
+     */
+    function padImagesArray(imagesArray) {
+        const fillValue = ""; // Folosim string gol
+        
+        if (!imagesArray || !Array.isArray(imagesArray)) {
+            // Dacă e null/undefined, returnează 5 string-uri goale
+            return new Array(5).fill(fillValue);
+        }
+        
+        // Asigură-te că e de-duplicat și filtrează valorile goale (null, "", undefined)
+        const validImages = imagesArray.filter(img => img); // Filtrează orice e 'falsy'
+        const uniqueImages = [...new Set(validImages)];
+        
+        const paddedArray = new Array(5).fill(fillValue); // Creează ["", "", "", "", ""]
+        
+        // Copiază imaginile existente
+        for (let i = 0; i < uniqueImages.length && i < 5; i++) {
+            paddedArray[i] = uniqueImages[i];
+        }
+        
+        return paddedArray;
+    }
+    // --- SFÂRȘIT MODIFICARE ---
+    
+    
+    // 3. Creăm un "payload" (o copie) a datelor și PAD-ĂM array-urile de imagini
+    
     const payload = JSON.parse(JSON.stringify(state.editedProductData));
     
+    // --- MODIFICARE: Aplicăm funcția de padare ---
+    // 3a. Pad-ăm imaginile 'origin'
+    payload.images = padImagesArray(payload.images);
+    
+    // 3b. Pad-ăm imaginile din 'other_versions'
     if (payload.other_versions) {
         const newOtherVersions = {};
         for (const [langName, langData] of Object.entries(payload.other_versions)) {
+            
+            // Pad-ăm array-ul de imagini
+            langData.images = padImagesArray(langData.images);
+            
+            // Re-aplicăm logica de conversie a numelui în cod de limbă
             const langCode = (languageNameToCodeMap[langName.toLowerCase()] || langName).toLowerCase();
             newOtherVersions[langCode] = langData;
         }
         payload.other_versions = newOtherVersions;
     }
+    // --- SFÂRȘIT MODIFICARE ---
+    
     
     const asin = document.getElementById('product-asin').value;
+    
+    // 4. Trimitem la server payload-ul CURĂȚAT și PAD-AT
     const success = await saveProductDetails(asin, payload);
     
     if (success) {
         alert('Salvat cu succes!');
+
+        // 5. Actualizăm și starea locală cu datele PADATE
+        state.editedProductData = JSON.parse(JSON.stringify(payload));
+
         return true;
     } else {
         alert('Eroare la salvare!');
@@ -281,7 +337,6 @@ export async function handleTranslationInit(languageOption) {
         alert('Eroare de rețea la inițierea traducerii.'); 
     }
 }
-// ... (sfârșit cod neschimbat)
 
 
 /**
@@ -297,8 +352,9 @@ export async function handleImageTranslation(button) {
         const asin = document.getElementById('product-asin')?.value;
         const activeKey = state.activeVersionKey; // ex: "romanian"
         
-        const originImagesWithDupes = state.editedProductData.images || [];
-        const originImages = [...new Set(originImagesWithDupes)];
+        // Trimitem doar imaginile unice și valide
+        const originImagesWithValues = (state.editedProductData.images || []).filter(img => img);
+        const originImages = [...new Set(originImagesWithValues)];
         
         const langCode = (languageNameToCodeMap[activeKey.toLowerCase()] || activeKey).toLowerCase();
 
@@ -329,7 +385,6 @@ export async function handleImageTranslation(button) {
             throw new Error(`Eroare HTTP: ${response.status}. ${errorText}`);
         }
 
-        // --- MODIFICARE: Verificăm răspunsul ---
         const result = await response.json();
 
         if (result.status === 'success') {
@@ -338,7 +393,6 @@ export async function handleImageTranslation(button) {
         } else {
             throw new Error('Webhook-ul a răspuns, dar nu cu status "success".');
         }
-        // --- SFÂRȘIT MODIFICARE ---
 
     } catch (error) {
         console.error('Eroare la inițierea traducerii imaginilor:', error);
@@ -352,31 +406,41 @@ export async function handleImageTranslation(button) {
 
 
 // --- EVENT HANDLERS (PENTRU A FI APELATE DIN main.js) ---
-// ... (cod neschimbat)
 export function handleImageActions(action, actionButton) {
-    let currentImages = getCurrentImagesArray();
+    let currentImages = getCurrentImagesArray(); // Acum este o copie
     if (action === 'delete-image') {
         const imageSrc = actionButton.dataset.imageSrc;
         if (!imageSrc) return;
-        if (!currentImages) currentImages = [];
-        currentImages = currentImages.filter(img => img !== imageSrc);
+        
+        // Filtrăm array-ul pentru a scoate *toate* instanțele acestei imagini (dacă bug-ul de duplicare ar reapărea)
+        // Sau, dacă vrem să ștergem doar prima, folosim codul de mai jos:
+        const indexToDelete = currentImages.indexOf(imageSrc);
+        if (indexToDelete > -1) {
+            currentImages.splice(indexToDelete, 1); // Șterge 1 element de la acel index
+        }
     }
     else if (action === 'add-image-url') {
-        if (!currentImages) currentImages = [];
-        if (currentImages.length >= 5) {
+        // Filtrăm valorile goale pentru a număra corect
+        const validImages = currentImages.filter(img => img);
+        if (validImages.length >= 5) {
             alert("Puteți adăuga maxim 5 imagini.");
             return;
         }
         const newImageUrl = prompt("Vă rugăm introduceți URL-ul noii imagini:");
         if (newImageUrl) {
+            if (currentImages.includes(newImageUrl)) {
+                alert("Această imagine este deja în galerie.");
+                return;
+            }
             currentImages.push(newImageUrl);
         }
     }
     else if (action === 'copy-origin-images') {
-        currentImages = [...(state.editedProductData.images || [])];
+        // Copiem imaginile din 'origin', filtrând valorile goale
+        currentImages = [...(state.editedProductData.images || [])].filter(img => img);
     }
 
-    setCurrentImagesArray(currentImages);
+    setCurrentImagesArray(currentImages); // Setează noul array (care e o copie)
     const galleryContainer = document.getElementById('image-gallery-container');
     if (galleryContainer) {
         galleryContainer.innerHTML = renderImageGallery(currentImages);
@@ -410,4 +474,3 @@ export function handleDescriptionToggle(descModeButton) {
     descModeButton.classList.add('bg-blue-600', 'text-white');
     descModeButton.classList.remove('hover:bg-gray-100');
 }
-// ... (sfârșit cod neschimbat)

@@ -17,11 +17,17 @@ export function setActiveView(viewId) {
 }
 
 export async function renderView(viewId, context = {}) {
+    
+    // --- MODIFICARE ---
+    // Stochează vederea anterioară înainte de a o suprascrie
+    if (viewId !== state.currentView) {
+        state.previousView = state.currentView;
+    }
+    // --- SFÂRȘIT MODIFICARE ---
+
     state.currentView = viewId;
     let html = '';
-    // --- MODIFICARE: Mutat declarația variabilei aici ---
-    let foundProduct = null; // Declarat la începutul funcției
-    // --- SFÂRȘIT MODIFICARE ---
+    let foundProduct = null; 
     mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă...</div>`;
     setActiveView(viewId);
 
@@ -39,7 +45,8 @@ export async function renderView(viewId, context = {}) {
                 html = templates.financiar(AppState.getCommands());
                 break;
             case 'exportDate':
-                html = templates.exportDate();
+                await fetchDataAndSyncState(); 
+                html = templates.exportDate(AppState.getCommands());
                 break;
              case 'paleti':
                 const commandForPaleti = AppState.getCommands().find(c => c.id === context.commandId);
@@ -82,14 +89,14 @@ export async function renderView(viewId, context = {}) {
                     const relevantAsins = command.products
                         .filter(p => (p.manifestsku || 'No ManifestSKU') === context.manifestSKU)
                         .map(p => p.asin);
-                    const uniqueAsins = [...new Set(relevantAsins)];
-
+                    const uniqueAsins = [...new Set(relevantAsins)]; 
+                    
                     const details = await fetchProductDetailsInBulk(uniqueAsins);
 
                     let commandToRender = command;
                     const query = state.currentSearchQuery.toLowerCase().trim();
                     if (query) {
-                         const filteredProducts = command.products.filter(p => {
+                        const filteredProducts = command.products.filter(p => {
                             const skuMatches = (p.manifestsku || 'No ManifestSKU') === context.manifestSKU;
                             if (!skuMatches) return false;
                             return fuzzySearch(query, details[p.asin]?.title || '') || fuzzySearch(query, p.asin);
@@ -105,7 +112,7 @@ export async function renderView(viewId, context = {}) {
                  mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă detaliile produsului...</div>`;
                 state.competitionDataCache = null;
                 const cmd = AppState.getCommands().find(c => c.id === context.commandId);
-                // foundProduct este deja declarat la începutul funcției
+                foundProduct = null; 
                 if (cmd) {
                    foundProduct = cmd.products.find(p => p.uniqueId === context.productId);
                 }
@@ -124,7 +131,7 @@ export async function renderView(viewId, context = {}) {
                     if (!productDetails) {
                          console.error(`Eroare: Nu s-au putut prelua detalii pentru ASIN ${foundProduct.asin}`);
                          html = `<div class="p-6 text-red-500">Eroare: Nu s-au putut încărca detaliile pentru ASIN ${foundProduct.asin}. Verificați consola.</div>`;
-                         break;
+                         break; 
                     }
 
                     if (!productDetails.images || !Array.isArray(productDetails.images)) {
@@ -156,8 +163,6 @@ export async function renderView(viewId, context = {}) {
 
     mainContent.innerHTML = html;
 
-    // --- LOGICĂ POST-RANDARE ---
-
     if (viewId === 'produse' && state.productScrollPosition > 0) {
         mainContent.scrollTop = state.productScrollPosition;
     } else if (viewId !== 'paleti') {
@@ -174,9 +179,7 @@ export async function renderView(viewId, context = {}) {
          searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
     }
 
-    // --- MODIFICARE: Verificarea folosește acum 'foundProduct' care e în scop ---
     if (viewId === 'produs-detaliu' && foundProduct) {
-    // --- SFÂRȘIT MODIFICARE ---
         const galleryContainer = document.getElementById('image-gallery-container');
         if (galleryContainer) {
             galleryContainer.innerHTML = renderImageGallery(state.editedProductData.images);

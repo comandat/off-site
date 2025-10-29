@@ -6,7 +6,7 @@
 // Noul cache in-memorie pentru detalii produse
 const productCache = {};
 const DATA_FETCH_URL = 'https://automatizare.comandat.ro/webhook/5a447557-8d52-463e-8a26-5902ccee8177';
-const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/39e78a55-36c9-4948-aa2d-d9301c996562';
+const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/39e78a55-36c9-4948-aa2d-d9301c996562-test';
 const PRODUCT_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/eecb8515-6092-47b0-af12-f10fb23407fa';
 
 // --- MANAGEMENT STARE APLICAȚIE ---
@@ -85,9 +85,21 @@ export async function fetchProductDetailsInBulk(asins) {
         const response = await fetch(PRODUCT_DETAILS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asins: asinsToFetch }) });
         if (!response.ok) throw new Error(`Eroare la preluarea detaliilor`);
         const responseData = await response.json();
-        const bulkData = responseData?.get_product_details_dynamically?.products || {};
+        const bulkData = responseData?.get_product_details_dynamically_test?.products || {};
+
+        // --- COD NOU PENTRU DEBUG (Adăugat la cererea dvs.) ---
+        console.log("Date brute primite de la webhook-ul de detalii:", bulkData);
+        // --- SFÂRȘIT COD NOU ---
+
         asinsToFetch.forEach(asin => {
-            const productData = bulkData[asin] || { title: 'N/A', images: [], description: '', features: {}, brand: '', price: '', category: '', categoryId: null, other_versions: {} };
+            
+            // --- MODIFICARE PENTRU DEBUG (Adăugat la cererea dvs.) ---
+            const productDataRaw = bulkData[asin];
+            console.log(`[Debug ASIN: ${asin}] Date primite:`, JSON.parse(JSON.stringify(productDataRaw)));
+            
+            const productData = productDataRaw || { title: 'N/A', images: [], description: '', features: {}, brand: '', price: '', category: '', categoryId: null, other_versions: {} };
+            // --- SFÂRȘIT MODIFICARE ---
+            
             AppState.setProductDetails(asin, productData);
             results[asin] = productData;
         });

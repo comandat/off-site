@@ -19,7 +19,9 @@ export function setActiveView(viewId) {
 export async function renderView(viewId, context = {}) {
     state.currentView = viewId;
     let html = '';
-    let product = null;
+    // --- MODIFICARE: Mutat declarația variabilei aici ---
+    let foundProduct = null; // Declarat la începutul funcției
+    // --- SFÂRȘIT MODIFICARE ---
     mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă...</div>`;
     setActiveView(viewId);
 
@@ -31,6 +33,13 @@ export async function renderView(viewId, context = {}) {
                 break;
             case 'import':
                 html = templates.import();
+                break;
+            case 'financiar':
+                await fetchDataAndSyncState();
+                html = templates.financiar(AppState.getCommands());
+                break;
+            case 'exportDate':
+                html = templates.exportDate();
                 break;
              case 'paleti':
                 const commandForPaleti = AppState.getCommands().find(c => c.id === context.commandId);
@@ -70,16 +79,21 @@ export async function renderView(viewId, context = {}) {
                 if (command && context.manifestSKU) {
                      mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă detaliile produselor...</div>`;
 
-                    const asins = command.products.map(p => p.asin);
-                    const details = await fetchProductDetailsInBulk(asins);
+                    const relevantAsins = command.products
+                        .filter(p => (p.manifestsku || 'No ManifestSKU') === context.manifestSKU)
+                        .map(p => p.asin);
+                    const uniqueAsins = [...new Set(relevantAsins)];
+
+                    const details = await fetchProductDetailsInBulk(uniqueAsins);
 
                     let commandToRender = command;
                     const query = state.currentSearchQuery.toLowerCase().trim();
                     if (query) {
-                        const filteredProducts = command.products.filter(p =>
-                            fuzzySearch(query, details[p.asin]?.title || '') ||
-                            fuzzySearch(query, p.asin)
-                        );
+                         const filteredProducts = command.products.filter(p => {
+                            const skuMatches = (p.manifestsku || 'No ManifestSKU') === context.manifestSKU;
+                            if (!skuMatches) return false;
+                            return fuzzySearch(query, details[p.asin]?.title || '') || fuzzySearch(query, p.asin);
+                         });
                         commandToRender = { ...command, products: filteredProducts };
                     }
                     html = templates.produse(commandToRender, details, context.manifestSKU);
@@ -91,39 +105,40 @@ export async function renderView(viewId, context = {}) {
                  mainContent.innerHTML = `<div class="p-8 text-center text-gray-500">Se încarcă detaliile produsului...</div>`;
                 state.competitionDataCache = null;
                 const cmd = AppState.getCommands().find(c => c.id === context.commandId);
+                // foundProduct este deja declarat la începutul funcției
                 if (cmd) {
-                   product = cmd.products.find(p => p.uniqueId === context.productId);
+                   foundProduct = cmd.products.find(p => p.uniqueId === context.productId);
                 }
 
-                // --- DEBUG START ---
-                if (product) {
-                    console.log(`%cFolosind ID-ul ${context.productId}, am găsit următorul obiect 'product' în AppState:`, "color: green; font-weight: bold;", JSON.parse(JSON.stringify(product)));
-                    console.log(`%cSe va deschide pagina de detalii pentru ASIN: ${product.asin}`, "color: green; font-weight: bold;");
+                if (foundProduct) {
+                    console.log(`%cFolosind uniqueId-ul ${context.productId}, am găsit următorul obiect 'product' în AppState:`, "color: green; font-weight: bold;", JSON.parse(JSON.stringify(foundProduct)));
+                    console.log(`%cSe va deschide pagina de detalii pentru ASIN: ${foundProduct.asin}`, "color: green; font-weight: bold;");
                 } else {
-                    console.error(`EROARE: Nu am găsit niciun produs cu ID-ul ${context.productId} în comandă.`);
+                    console.error(`EROARE: Nu am găsit niciun produs cu uniqueId-ul ${context.productId} în comandă ID ${context.commandId}.`);
                 }
-                // --- DEBUG END ---
 
-                if (product) {
-                    const detailsMap = await fetchProductDetailsInBulk([product.asin]);
-                    const productDetails = detailsMap[product.asin];
+                if (foundProduct) {
+                    const detailsMap = await fetchProductDetailsInBulk([foundProduct.asin]);
+                    const productDetails = detailsMap[foundProduct.asin];
+
+                    if (!productDetails) {
+                         console.error(`Eroare: Nu s-au putut prelua detalii pentru ASIN ${foundProduct.asin}`);
+                         html = `<div class="p-6 text-red-500">Eroare: Nu s-au putut încărca detaliile pentru ASIN ${foundProduct.asin}. Verificați consola.</div>`;
+                         break;
+                    }
 
                     if (!productDetails.images || !Array.isArray(productDetails.images)) {
                         productDetails.images = [];
                     }
-                    
-                    // --- CORECTURĂ ---
-                    // Filtrăm valorile goale ("") primite din baza de date
-                    // pentru a fi consistenți cu logica de salvare și afișare.
+
                     productDetails.images = productDetails.images.filter(img => img);
-                    // --- SFÂRȘIT CORECTURĂ ---
 
                     state.editedProductData = JSON.parse(JSON.stringify(productDetails));
                     state.activeVersionKey = 'origin';
 
-                    html = templates.produsDetaliu(product, state.editedProductData, context.commandId);
+                    html = templates.produsDetaliu(foundProduct, state.editedProductData, context.commandId);
                 } else {
-                     html = '<div class="p-6 text-red-500">Eroare: Produsul nu a fost găsit.</div>';
+                     html = `<div class="p-6 text-red-500">Eroare: Produsul nu a fost găsit (ID: ${context.productId}). Verificați consola.</div>`;
                 }
                 break;
             default:
@@ -159,16 +174,14 @@ export async function renderView(viewId, context = {}) {
          searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
     }
 
-    if (viewId === 'produs-detaliu' && product) {
+    // --- MODIFICARE: Verificarea folosește acum 'foundProduct' care e în scop ---
+    if (viewId === 'produs-detaliu' && foundProduct) {
+    // --- SFÂRȘIT MODIFICARE ---
         const galleryContainer = document.getElementById('image-gallery-container');
         if (galleryContainer) {
             galleryContainer.innerHTML = renderImageGallery(state.editedProductData.images);
-            
-             // --- MODIFICARE (Corecție Sortable.js) ---
-             // Apelăm necondiționat. Funcția 'initializeSortable' se ocupă de logică.
              initializeSortable();
-             // --- SFÂRȘIT MODIFICARE ---
         }
-        fetchAndRenderCompetition(product.asin);
+        fetchAndRenderCompetition(foundProduct.asin);
     }
 }

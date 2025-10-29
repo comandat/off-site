@@ -3,9 +3,8 @@ import { state } from './state.js';
 import { renderView } from './viewRenderer.js';
 import { initGlobalListeners } from './lightbox.js';
 import { sendReadyToList, handleUploadSubmit, handleAsinUpdate } from './api.js';
-// --- MODIFICARE: Am importat AppState și fetchDataAndSyncState ---
 import { AppState, fetchDataAndSyncState } from './data.js'; 
-// --- SFÂRȘIT MODIFICARE ---
+import { templates } from './templates.js';
 import { 
     loadTabData, 
     handleProductSave, 
@@ -14,9 +13,7 @@ import {
     handleImageActions, 
     handleDescriptionToggle,
     saveCurrentTabData,
-    // --- MODIFICARE: Am importat funcția core de salvare ---
     saveProductCoreData,
-    // --- SFÂRȘIT MODIFICARE ---
     handleImageTranslation
 } from './product-details.js';
 
@@ -25,12 +22,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- INIȚIALIZARE EVENT LISTENERS ---
 
-    // Listener pentru click-uri pe acțiuni principale
+    // --- MODIFICARE: Listener nou pentru Sidebar ---
+    // Folosim document.body pentru a prinde click-urile pe sidebar,
+    // deoarece sidebar-ul este ÎN AFARA 'mainContent'.
+    document.body.addEventListener('click', async (event) => {
+        const target = event.target;
+        const sidebarBtn = target.closest('.sidebar-btn');
+
+        // --- Navigare Sidebar ---
+        if (sidebarBtn) {
+            const view = sidebarBtn.dataset.view;
+            if (view) {
+                // Previne dubla-procesare de către alți listeneri
+                event.stopPropagation(); 
+                await renderView(view);
+                return;
+            }
+        }
+    });
+    // --- SFÂRȘIT MODIFICARE ---
+
+
+    // Listener pentru click-uri pe acțiuni principale (DOAR ÎN mainContent)
     mainContent.addEventListener('click', async (event) => {
         const target = event.target;
         
         // --- Selectori ---
+        // --- MODIFICARE: Am scos 'sidebarBtn' de aici ---
         const commandCard = target.closest('[data-command-id]:not([data-action])');
+        // --- SFÂRȘIT MODIFICARE ---
         const palletCard = target.closest('[data-manifest-sku]');
         const productCard = target.closest('[data-product-id]');
         const actionButton = target.closest('[data-action]');
@@ -39,7 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const descModeButton = target.closest('[data-action="toggle-description-mode"]');
         const thumbnail = target.closest('[data-action="select-thumbnail"]');
 
-        // --- Navigare ---
+        // --- MODIFICARE: Am scos logica 'sidebarBtn' de aici ---
+
+        // --- Navigare Conținut ---
         if (commandCard) {
             state.currentSearchQuery = '';
             state.currentCommandId = commandCard.dataset.commandId;
@@ -126,11 +148,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (confirm(`Sigur doriți să ${confirmAction} acest produs (${asin}) ca "Gata pentru Listat"?`)) {
                     
-                    // --- MODIFICARE: Adăugare logică de salvare automată ---
                     let saveSuccess = true;
-                    if (setReadyStatus === true) { // Salvează automat DOAR la marcare
+                    if (setReadyStatus === true) { 
                         console.log("Marcare Gata: Se salvează automat modificările...");
-                        saveSuccess = await saveProductCoreData(); // Așteaptă salvarea
+                        saveSuccess = await saveProductCoreData();
                         
                         if (!saveSuccess) {
                             alert('A apărut o eroare la salvarea modificărilor. Acțiunea "Gata de listat" a fost anulată.');
@@ -138,9 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              console.log("Salvare automată reușită. Se continuă cu marcarea...");
                         }
                     }
-                    // --- SFÂRȘIT MODIFICARE ---
 
-                    // Continuă doar dacă salvarea a fost reușită (sau nu a fost necesară)
                     if (saveSuccess) {
                         const payload = { orderId, pallet: palletSku || 'N/A', asin, setReadyStatus };
                         const success = await sendReadyToList(payload, actionButton);
@@ -152,7 +171,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                         }
                     }
-                    // --- SFÂRȘIT MODIFICARE ---
                 }
             }
             if (action === 'ready-to-list-command') {
@@ -193,11 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // --- MODIFICARE: Logica de reîncărcare cu invalidarea cache-ului ---
             if (action === 'translate-ai-images') {
                 const currentTabKey = state.activeVersionKey; 
                 
-                // Luăm ASIN-ul de pe pagină
                 const asin = document.getElementById('product-asin')?.value;
                 if (!asin) {
                     alert('Eroare: Nu s-a putut găsi ASIN-ul produsului.');
@@ -207,24 +223,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const success = await handleImageTranslation(actionButton);
                 
                 if (success) {
-                    // 1. Invalidează cache-ul pentru acest produs
                     AppState.clearProductCache(asin); 
-                    
-                    // 2. Reîmprospătează datele comenzilor (opțional, dar sigur)
                     await fetchDataAndSyncState(); 
                     
-                    // 3. Re-randează pagina de detalii. Acum va forța un fetch nou.
                     await renderView('produs-detaliu', {
                         commandId: state.currentCommandId,
                         productId: state.currentProductId
                     });
                     
-                    // 4. Re-selectează tab-ul pe care era utilizatorul
                     loadTabData(currentTabKey);
                 }
-                return; // Oprește execuția aici
+                return;
             }
-            // --- SFÂRȘIT MODIFICARE ---
             
             if (['delete-image', 'add-image-url', 'copy-origin-images'].includes(action)) {
                 handleImageActions(action, actionButton);
@@ -232,14 +242,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Listener pentru input (căutare, filtre)
+    // Listener pentru input (căutare, filtre, și calcul TVA)
     mainContent.addEventListener('input', async (event) => {
+        
+        // Căutare limbă (dropdown traduceri)
         if (event.target.id === 'language-search') {
             const filter = event.target.value.toLowerCase();
             document.querySelectorAll('#language-list .language-option').forEach(link => {
                 link.style.display = link.textContent.toLowerCase().includes(filter) ? '' : 'none';
             });
         }
+        // Căutare produs (paginile paleti/produse)
         else if (event.target.id === 'product-search-input') {
             state.currentSearchQuery = event.target.value;
             state.productScrollPosition = 0;
@@ -257,12 +270,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 const searchInput = document.getElementById('product-search-input');
                 if (searchInput) {
                     searchInput.focus();
-                    // Mută cursorul la final
                     const val = searchInput.value;
                     searchInput.value = '';
                     searchInput.value = val;
                 }
             }, 300);
+        }
+        
+        // Calcul dinamic TVA pe pagina Financiar
+        else if (event.target.id === 'financiar-total-fara-tva') {
+            const totalFaraTVA = parseFloat(event.target.value) || 0;
+            const totalCuTVA = totalFaraTVA * 1.21;
+            const tvaField = document.getElementById('financiar-total-cu-tva');
+            if (tvaField) {
+                tvaField.value = totalCuTVA.toFixed(2);
+            }
+        }
+    });
+
+    // Listener nou pentru 'change' (selectorul de comandă)
+    mainContent.addEventListener('change', async (event) => {
+        if (event.target.id === 'financiar-command-select') {
+            const commandId = event.target.value;
+            const detailsContainer = document.getElementById('financiar-details-container');
+            if (!detailsContainer) return;
+
+            if (!commandId) {
+                detailsContainer.innerHTML = templates.financiarDetails(null);
+                return;
+            }
+
+            // TODO: Înlocuiește cu un fetch real pentru datele financiare
+            // Deocamdată, folosim date simulate și ID-ul comenzii
+            console.log(`TODO: Se încarcă datele financiare pentru Comanda ${commandId}`);
+            
+            // Simulare date - acestea vor veni de la un API
+            const simulatedData = {
+                id: commandId,
+                orderdate: "2025-10-28", // Simulat
+                totalordercostwithoutvat: 1234.50, // Simulat
+                transportcost: 150, // Simulat
+                discount: 25, // Simulat
+                currency: "EUR", // Simulat
+                exchangerate: 1.0 // Simulat
+            };
+            
+            detailsContainer.innerHTML = templates.financiarDetails(simulatedData);
         }
     });
 
@@ -271,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target.id === 'upload-form') {
             const success = await handleUploadSubmit(event);
             if (success) {
-                await renderView('comenzi'); // Reîncarcă vizualizarea comenzilor
+                await renderView('comenzi');
             }
         }
     });
@@ -286,5 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initGlobalListeners();
 
     // --- PORNIRE APLICAȚIE ---
-    renderView('comenzi');
+    // Verifică dacă există o vizualizare salvată (de ex. după un refresh)
+    const lastView = state.currentView || 'comenzi';
+    renderView(lastView);
 });

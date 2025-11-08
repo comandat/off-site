@@ -1,183 +1,143 @@
 // scripts/data.js
 
 // --- CONFIGURARE WEBHOOKS ---
-// ...
-
-// Noul cache in-memorie pentru detalii produse
-const productCache = {};
 const DATA_FETCH_URL = 'https://automatizare.comandat.ro/webhook/5a447557-8d52-463e-8a26-5902ccee8177';
-const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/39e78a55-36c9-4948-aa2d-d9301c996562-test';
-const PRODUCT_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/eecb8515-6092-47b0-af12-f10fb23407fa';
+const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/f1bb3c1c-3730-4672-b989-b3e73b911043';
+const STOCK_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/4bef3762-2d4f-437d-a05c-001ccb597ab9';
+export const FIX_DUPLICATE_SKU_URL = 'https://automatizare.comandat.ro/webhook/fix-duplicate-sku';
 
-// --- MANAGEMENT STARE APLICAȚIE ---
 export const AppState = {
     getCommands: () => JSON.parse(sessionStorage.getItem('liveCommandsData') || '[]'),
-    setCommands: (commands) => sessionStorage.setItem('liveCommandsData', JSON.stringify(commands)),
-
-    // --- Modificat ---
-    // Citește din cache-ul in-memorie
-    getProductDetails: (asin) => productCache[asin] || null,
-
-    // --- Modificat ---
-    // Scrie în cache-ul in-memorie, nu în sessionStorage
-    setProductDetails: (asin, data) => {
-        productCache[asin] = data;
-    },
-
-    // --- NOU: Funcție pentru a curăța cache-ul unui produs ---
-    clearProductCache: (asin) => {
-        if (asin && productCache[asin]) {
-            delete productCache[asin];
-            console.log(`Cache invalidat pentru ASIN: ${asin}`);
-        }
-    }
-    // --- SFÂRȘIT NOU ---
+    setCommands: (commands) => sessionStorage.setItem('liveCommandsData', JSON.stringify(commands))
 };
-
-function processServerData(data) {
-    if (!data) return [];
-    return Object.keys(data).map(commandId => ({
-        id: commandId,
-        name: `Comanda #${commandId.substring(0, 12)}`,
-        products: (data[commandId] || []).map(p => ({
-            id: p.productsku, // Păstrăm 'id' ca productsku (pentru 'edit-asin' etc.)
-            uniqueId: `${p.productsku}::${p.manifestsku || 'N/A'}`, // Noul ID unic pentru navigație
-            asin: p.asin,
-            expected: p.orderedquantity || 0,
-            found: (p.bncondition || 0) + (p.vgcondition || 0) + (p.gcondition || 0) + (p.broken || 0),
-            manifestsku: p.manifestsku || null,
-            listingReady: p.listingready || false,
-            
-            // --- MODIFICARE: Adăugat pentru funcția de export ---
-            bncondition: p.bncondition || 0,
-            vgcondition: p.vgcondition || 0,
-            gcondition: p.gcondition || 0,
-            broken: p.broken || 0,
-            
-            // --- MODIFICARE: Placeholder pentru datele care lipsesc momentan din webhook ---
-            // Aceste date sunt cerute de funcția de export, dar nu par a fi în 'p'
-            // Vor fi 'undefined' dacă nu vin de la server, ceea ce e ok.
-            stockcode: p.stockcode, 
-            unitweight: p.unitweight,
-            estimatedsalevaluewithvat: p.estimatedsalevaluewithvat,
-            verificationready: p.verificationready // Necesar pentru "Update Stoc Real"
-            // --- SFÂRȘIT MODIFICARE ---
-        }))
-    }));
-}
 
 export async function fetchDataAndSyncState() {
     const accessCode = sessionStorage.getItem('lastAccessCode');
     if (!accessCode) return false;
+
     try {
-        const response = await fetch(DATA_FETCH_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ code: accessCode }), cache: 'no-store' });
-        if (!response.ok) throw new Error(`Eroare de rețea: ${response.status}`);
-        
-        const responseData = await response.json();
-        
-        // --- DEBUG START ---
-        console.log("Date brute primite de la webhook (înainte de procesare):", JSON.parse(JSON.stringify(responseData.data)));
-        // --- DEBUG END ---
-
-        if (responseData.status !== 'success' || !responseData.data) throw new Error('Răspuns invalid de la server');
-        
-        const processedData = processServerData(responseData.data);
-
-        // --- DEBUG START ---
-        console.log("Date procesate și salvate în AppState (după procesare):", processedData);
-        // --- DEBUG END ---
-        
-        AppState.setCommands(processedData);
-        return true;
-    } catch (error) { console.error('Sincronizarea datelor a eșuat:', error); return false; }
-}
-
-export async function fetchProductDetailsInBulk(asins) {
-    const results = {}, asinsToFetch = [];
-    asins.forEach(asin => { const cachedData = AppState.getProductDetails(asin); if (cachedData) results[asin] = cachedData; else asinsToFetch.push(asin); });
-    if (asinsToFetch.length === 0) return results;
-    try {
-        const response = await fetch(PRODUCT_DETAILS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asins: asinsToFetch }) });
-        if (!response.ok) throw new Error(`Eroare la preluarea detaliilor`);
-        const responseData = await response.json();
-        const bulkData = responseData?.get_product_details_dynamically_test?.products || {};
-        asinsToFetch.forEach(asin => {
-            const productData = bulkData[asin] || { title: 'N/A', images: [], description: '', features: {}, brand: '', price: '', category: '', categoryId: null, other_versions: {} };
-            AppState.setProductDetails(asin, productData);
-            results[asin] = productData;
+        // Adăugăm opțiunea 'cache: 'no-store'' pentru a forța reîncărcarea datelor proaspete
+        const response = await fetch(DATA_FETCH_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ code: accessCode }),
+            cache: 'no-store' 
         });
+
+        if (!response.ok) throw new Error('Network error during data fetch');
+        
+        const responseData = await response.json();
+        
+        console.log("RAW DATA RECEIVED FROM SERVER:", JSON.stringify(responseData.data, null, 2));
+
+        if (responseData.status !== 'success' || !responseData.data) throw new Error('Invalid data from server');
+
+        const commands = Object.keys(responseData.data).map(commandId => {
+            const products = responseData.data[commandId] || [];
+            return {
+                id: commandId,
+                name: `Comanda #${commandId.substring(0, 12)}`,
+                products: products.map(p => {
+                    const state = {
+                        'new': p.bncondition || 0,
+                        'very-good': p.vgcondition || 0,
+                        'good': p.gcondition || 0,
+                        'broken': p.broken || 0
+                    };
+                    const found = Object.values(state).reduce((sum, val) => Number(sum) + Number(val), 0);
+                    return {
+                        id: p.productsku,
+                        asin: p.asin,
+                        manifestsku: p.manifestsku || null, // Aici citim manifestsku
+                        expected: p.orderedquantity || 0,
+                        found: found,
+                        state: state,
+                        suggestedcondition: p.suggestedcondition || 'N/A'
+                    };
+                })
+            };
+        });
+        
+        AppState.setCommands(commands);
+        return true;
     } catch (error) {
-        console.error('Eroare la preluarea detaliilor produselor:', error);
-        asinsToFetch.forEach(asin => { results[asin] = { title: 'Eroare', images: [], description: '', features: {}, brand: '', price: '', category: '', categoryId: null, other_versions: {} }; });
+        console.error('Data sync failed:', error);
+        return false;
     }
-    return results;
 }
 
-export async function saveProductDetails(asin, updatedData) {
-
-    function makeQueryFriendly(str) {
-        return str ? str.replace(/'/g, " ") : str;
-    }
-
-    const processedData = JSON.parse(JSON.stringify(updatedData));
-    
-    if (!processedData.features || typeof processedData.features !== 'object') {
-        processedData.features = {};
-    }
-
-    if (processedData.other_versions) {
-        for (const langCode in processedData.other_versions) {
-            const version = processedData.other_versions[langCode];
-            
-            if (version && typeof version === 'object') {
-                if (!version.features || typeof version.features !== 'object') {
-                    version.features = {};
-                }
-            }
+export async function sendStockUpdate(commandId, productAsin, stockDelta) {
+    const changes = [];
+    for (const condition in stockDelta) {
+        const value = stockDelta[condition];
+        if (value !== 0) {
+            changes.push({
+                condition: condition,
+                changeValue: value
+            });
         }
     }
 
-
-    if (processedData.title) {
-        processedData.title = makeQueryFriendly(processedData.title);
-    }
-    if (processedData.description) {
-        processedData.description = makeQueryFriendly(processedData.description);
-    }
-
-    if (processedData.other_versions) {
-        for (const langCode in processedData.other_versions) {
-            const version = processedData.other_versions[langCode];
-            if (version && version.title) {
-                version.title = makeQueryFriendly(version.title);
-            }
-            if (version && version.description) {
-                version.description = makeQueryFriendly(version.description);
-            }
-        }
-    }
+    if (changes.length === 0) return true;
 
     const payload = {
-        asin,
-        updatedData: processedData
+        orderId: commandId,
+        asin: productAsin,
+        changes: changes
     };
 
     try {
-        const response = await fetch(PRODUCT_UPDATE_URL, {
-            method: 'PATCH',
+        const response = await fetch(STOCK_UPDATE_URL, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         if (!response.ok) {
-            console.error(`Salvarea a eșuat:`, await response.text());
-            return false;
+             console.error(`Failed to update stock:`, await response.text());
+             return false;
         }
-
-        AppState.setProductDetails(asin, updatedData);
-
         return true;
     } catch (error) {
-        console.error('Eroare de rețea la salvare:', error);
+        console.error('Network error during stock update:', error);
         return false;
     }
 }
+
+export async function fetchProductDetailsInBulk(asins) {
+    const results = {};
+    const asinsToFetch = asins.filter(asin => !sessionStorage.getItem(`product_${asin}`));
+
+    asins.forEach(asin => {
+        if(sessionStorage.getItem(`product_${asin}`)){
+            results[asin] = JSON.parse(sessionStorage.getItem(`product_${asin}`));
+        }
+    });
+
+    if (asinsToFetch.length === 0) return results;
+
+    try {
+        const response = await fetch(PRODUCT_DETAILS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asins: asinsToFetch }),
+        });
+        if (!response.ok) throw new Error(`Network response was not ok`);
+        
+        const responseData = await response.json();
+        const bulkData = responseData.products || responseData;
+
+        for (const asin of asinsToFetch) {
+            const productData = bulkData[asin] || { title: 'Nume indisponibil', images: [] };
+            sessionStorage.setItem(`product_${asin}`, JSON.stringify(productData));
+            results[asin] = productData;
+        }
+    } catch (error) {
+        console.error('Eroare la preluarea detaliilor produselor (bulk):', error);
+        for (const asin of asinsToFetch) {
+            results[asin] = { title: 'Eroare la încărcare', images: [] };
+        }
+    }
+    
+    return results;
+}
+

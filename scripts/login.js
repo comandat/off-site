@@ -3,7 +3,7 @@ import { fetchDataAndSyncState } from './data.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     if (sessionStorage.getItem('isLoggedIn') === 'true') {
-        window.location.href = 'main.html';
+        window.location.href = 'app.html';
         return;
     }
 
@@ -13,7 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginButton = document.getElementById('login-button');
     const buttonText = loginButton.querySelector('.button-text');
     const buttonLoader = loginButton.querySelector('.button-loader');
-    const webhookUrl = 'https://automatizare.comandat.ro/webhook/637e1f6e-7beb-4295-89bd-4d7022f12d45';
+
+    const loginWebhookUrl = 'https://automatizare.comandat.ro/webhook/637e1f6e-7beb-4295-89bd-4d7022f12d45';
 
     const performLogin = async (accessCode) => {
         errorMessage.textContent = '';
@@ -22,32 +23,39 @@ document.addEventListener('DOMContentLoaded', () => {
         buttonLoader.classList.remove('hidden');
 
         try {
-            const loginResponse = await fetch(webhookUrl, {
+            // PAS 1: Validare cod de acces
+            const loginResponse = await fetch(loginWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify({ code: accessCode }),
             });
 
-            if (!loginResponse.ok) throw new Error(`Eroare HTTP: ${loginResponse.status}`);
+            if (!loginResponse.ok) throw new Error(`Eroare de rețea la login: ${loginResponse.status}`);
             
             const loginData = await loginResponse.json();
             if (loginData?.status !== 'success') {
                 errorMessage.textContent = 'Cod de acces incorect.';
-                throw new Error('Autentificare eșuată');
+                throw new Error('Login failed');
             }
+
+            sessionStorage.setItem('loggedInUser', loginData.user);
             sessionStorage.setItem('lastAccessCode', accessCode);
 
+            // PAS 2: Sincronizare completă a datelor folosind funcția cu numele corect
             const syncSuccess = await fetchDataAndSyncState();
+
             if (syncSuccess) {
                 sessionStorage.setItem('isLoggedIn', 'true');
-                window.location.href = 'main.html';
+                window.location.href = 'app.html';
             } else {
                 errorMessage.textContent = 'Autentificare reușită, dar eroare la sincronizarea datelor.';
             }
 
         } catch (error) {
-            console.error('Eroare în procesul de login:', error);
-            if (!errorMessage.textContent) errorMessage.textContent = 'Eroare la conectare.';
+            console.error('Eroare la autentificare:', error);
+            if (!errorMessage.textContent) {
+                errorMessage.textContent = 'Eroare la conectare. Vă rugăm încercați din nou.';
+            }
         } finally {
             loginButton.disabled = false;
             buttonText.classList.remove('hidden');
@@ -65,3 +73,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+

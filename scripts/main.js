@@ -1,8 +1,8 @@
 import { state } from './state.js';
 import { renderView } from './viewRenderer.js';
 import { initGlobalListeners } from './lightbox.js';
-import { sendReadyToList, handleUploadSubmit, handleAsinUpdate } from './api.js';
-import { AppState, fetchDataAndSyncState } from './data.js'; 
+import { sendReadyToList, handleUploadSubmit, handleAsinUpdate, saveFinancialDetails } from './api.js'; 
+import { AppState, fetchDataAndSyncState, fetchProductDetailsInBulk } from './data.js';
 import { templates } from './templates.js';
 import { 
     loadTabData, 
@@ -14,7 +14,7 @@ import {
     saveCurrentTabData,
     saveProductCoreData,
     handleImageTranslation,
-    handleDescriptionRefresh // <-- MODIFICARE AICI
+    handleDescriptionRefresh
 } from './product-details.js';
 import { 
     handleExportPreliminar, 
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
                 
-                // state.currentView va fi setat de renderView
+                state.previousView = state.currentView; 
                 
                 const command = AppState.getCommands().find(c => c.id === commandId);
                 const product = command?.products.find(p => p.uniqueId === productId);
@@ -136,6 +136,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 return; 
             }
+            
+            if (action === 'save-financial') {
+                const orderId = document.getElementById('financiar-order-id').value;
+                const totalNoVat = document.getElementById('financiar-total-fara-tva').value;
+                const totalWithVat = document.getElementById('financiar-total-cu-tva').value;
+                const transport = document.getElementById('financiar-cost-transport').value;
+                const discount = document.getElementById('financiar-reducere').value;
+                const currency = document.getElementById('financiar-moneda').value;
+                const rate = document.getElementById('financiar-rata-schimb').value;
+
+                const payload = {
+                    orderid: orderId,
+                    totalordercostwithoutvat: totalNoVat,
+                    totalordercostwithvat: totalWithVat,
+                    transportcost: transport,
+                    discount: discount,
+                    currency: currency,
+                    exchangerate: rate,
+                };
+
+                await saveFinancialDetails(payload, actionButton);
+            }
 
             if (action === 'back-to-comenzi') {
                 state.currentCommandId = null;
@@ -152,14 +174,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (action === 'back-to-produse') {
                 state.currentProductId = null;
                 
-                // --- MODIFICARE AICI ---
-                // Verificăm pagina ANTERIOARĂ, nu cea curentă
-                const cameFromExport = state.previousView === 'exportDate';
-                
-                if (cameFromExport) {
-                // --- SFÂRȘIT MODIFICARE ---
+                if (state.previousView === 'exportDate') {
                     await renderView('exportDate');
-                    
                     const select = document.getElementById('export-command-select');
                     if (select && state.currentCommandId) { 
                         select.value = state.currentCommandId;
@@ -171,7 +187,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                             await handleExportPreliminar(state.currentCommandId, prelimBtn);
                         }
                     }
-
+                } else if (state.previousView === 'financiar') {
+                    await renderView('financiar');
+                    const select = document.getElementById('financiar-command-select');
+                    if (select && state.currentCommandId) {
+                        select.value = state.currentCommandId;
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
                 } else {
                     await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
                 }
@@ -191,12 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (setReadyStatus === true) { 
                         console.log("Marcare Gata: Se salvează automat modificările...");
                         saveSuccess = await saveProductCoreData();
-                        
-                        if (!saveSuccess) {
-                            alert('A apărut o eroare la salvarea modificărilor. Acțiunea "Gata de listat" a fost anulată.');
-                        } else {
-                             console.log("Salvare automată reușită. Se continuă cu marcarea...");
-                        }
+                        if (!saveSuccess) alert('A apărut o eroare la salvarea modificărilor. Acțiunea "Gata de listat" a fost anulată.');
                     }
 
                     if (saveSuccess) {
@@ -230,10 +247,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 actionButton.closest('.dropdown-menu')?.classList.add('hidden');
             }
 
-            // --- AICI ESTE CORECTURA ---
             if (action === 'edit-asin') {
-                event.preventDefault(); // Oprește acțiunea default
-                event.stopPropagation(); // Oprește propagarea click-ului
+                event.preventDefault(); 
+                event.stopPropagation(); 
                 
                 const success = await handleAsinUpdate(actionButton);
                 if (success) {
@@ -243,38 +259,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 }
             }
-            // --- SFÂRȘIT CORECTURĂ ---
 
             if (action === 'refresh-ro-title') {
                 await handleTitleRefresh(actionButton);
             }
             
-            // --- MODIFICARE AICI ---
             if (action === 'refresh-ro-description') {
                 await handleDescriptionRefresh(actionButton);
             }
-            // --- SFÂRȘIT MODIFICARE ---
 
             if (action === 'save-product') {
                 const success = await handleProductSave(actionButton);
                 if (success) {
-                    // --- MODIFICARE AICI ---
-                    // Verificăm pagina ANTERIOARĂ
-                    const cameFromExport = state.previousView === 'exportDate';
-                    if (cameFromExport) {
-                    // --- SFÂRȘIT MODIFICARE ---
-                        await renderView('exportDate');
-                        
-                        const select = document.getElementById('export-command-select');
-                        if (select && state.currentCommandId) {
+                    if (state.previousView === 'exportDate') {
+                         await renderView('exportDate');
+                         const select = document.getElementById('export-command-select');
+                         if (select && state.currentCommandId) {
                             select.value = state.currentCommandId;
                             select.dispatchEvent(new Event('change', { bubbles: true }));
-                            
                             const prelimBtn = document.getElementById('export-preliminar-btn');
                             if(prelimBtn) {
                                 await new Promise(resolve => setTimeout(resolve, 0));
                                 await handleExportPreliminar(state.currentCommandId, prelimBtn);
                             }
+                        }
+                    } else if (state.previousView === 'financiar') {
+                        await renderView('financiar');
+                        const select = document.getElementById('financiar-command-select');
+                        if (select && state.currentCommandId) {
+                            select.value = state.currentCommandId;
+                            select.dispatchEvent(new Event('change', { bubbles: true }));
                         }
                     } else {
                         await renderView('produse', { commandId: state.currentCommandId, manifestSKU: state.currentManifestSKU });
@@ -284,24 +298,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             if (action === 'translate-ai-images') {
                 const currentTabKey = state.activeVersionKey; 
-                
                 const asin = document.getElementById('product-asin')?.value;
-                if (!asin) {
-                    alert('Eroare: Nu s-a putut găsi ASIN-ul produsului.');
-                    return;
-                }
+                if (!asin) { alert('Eroare: Nu s-a putut găsi ASIN-ul produsului.'); return; }
 
                 const success = await handleImageTranslation(actionButton);
                 
                 if (success) {
                     AppState.clearProductCache(asin); 
                     await fetchDataAndSyncState(); 
-                    
-                    await renderView('produs-detaliu', {
-                        commandId: state.currentCommandId,
-                        productId: state.currentProductId
-                    });
-                    
+                    await renderView('produs-detaliu', { commandId: state.currentCommandId, productId: state.currentProductId });
                     loadTabData(currentTabKey);
                 }
                 return;
@@ -370,10 +375,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }, 300);
         }
-        
+
+        // --- CALCUL AUTOMAT TVA 21% ---
         else if (event.target.id === 'financiar-total-fara-tva') {
             const totalFaraTVA = parseFloat(event.target.value) || 0;
-            const totalCuTVA = totalFaraTVA * 1.21;
+            const totalCuTVA = totalFaraTVA * 1.21; // 21%
+            
             const tvaField = document.getElementById('financiar-total-cu-tva');
             if (tvaField) {
                 tvaField.value = totalCuTVA.toFixed(2);
@@ -383,33 +390,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     mainContent.addEventListener('change', async (event) => {
         if (event.target.id === 'financiar-command-select') {
-            const commandId = event.target.value;
+            const selectedCommandId = event.target.value;
+            state.currentCommandId = selectedCommandId; 
+
             const detailsContainer = document.getElementById('financiar-details-container');
             if (!detailsContainer) return;
 
-            if (!commandId) {
-                detailsContainer.innerHTML = templates.financiarDetails(null);
+            if (!selectedCommandId) {
+                detailsContainer.innerHTML = templates.financiarDetails(null, null, null);
                 return;
             }
 
-            console.log(`TODO: Se încarcă datele financiare pentru Comanda ${commandId}`);
+            detailsContainer.innerHTML = '<div class="text-center p-8 text-gray-500">Se încarcă datele și produsele...</div>';
+
+            const commandData = AppState.getCommands().find(c => c.id === selectedCommandId);
             
-            const simulatedData = {
-                id: commandId,
-                orderdate: "2025-10-28", 
-                totalordercostwithoutvat: 1234.50, 
-                transportcost: 150, 
-                discount: 25, 
-                currency: "EUR", 
-                exchangerate: 1.0 
-            };
-            
-            detailsContainer.innerHTML = templates.financiarDetails(simulatedData);
+            const financialDataList = AppState.getFinancialData();
+            let matchedFinancial = financialDataList.find(item => item.orderid === selectedCommandId);
+
+            if (!matchedFinancial) {
+                console.warn(`Nu s-au găsit date financiare pentru comanda ${selectedCommandId}.`);
+                matchedFinancial = { orderid: selectedCommandId };
+            }
+
+            const asins = commandData.products.map(p => p.asin);
+            const detailsMap = await fetchProductDetailsInBulk(asins);
+
+            detailsContainer.innerHTML = templates.financiarDetails(commandData, matchedFinancial, detailsMap);
         }
 
         if (event.target.id === 'export-command-select') {
             const commandId = event.target.value;
-            // Păstrează ID-ul comenzii în state
             state.currentCommandId = commandId || null; 
             
             const actionsContainer = document.getElementById('export-actions-container');
@@ -447,20 +458,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const lastView = state.currentView || 'comenzi';
     
-    // Logica de pornire (pentru refresh-uri de pagină)
     if (lastView === 'exportDate' && state.currentCommandId) {
         await renderView('exportDate');
-        
         const select = document.getElementById('export-command-select');
         if (select) {
             select.value = state.currentCommandId;
             select.dispatchEvent(new Event('change', { bubbles: true }));
-            
             const prelimBtn = document.getElementById('export-preliminar-btn');
             if (prelimBtn) {
                 await new Promise(resolve => setTimeout(resolve, 0));
                 await handleExportPreliminar(state.currentCommandId, prelimBtn);
             }
+        }
+    } else if (lastView === 'financiar') {
+        await renderView('financiar');
+        if (state.currentCommandId) {
+             const select = document.getElementById('financiar-command-select');
+             if (select) {
+                 select.value = state.currentCommandId;
+                 select.dispatchEvent(new Event('change', { bubbles: true }));
+             }
         }
     } else {
         renderView(lastView);

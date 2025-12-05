@@ -1,11 +1,14 @@
 // scripts/api.js
-import { N8N_UPLOAD_WEBHOOK_URL, READY_TO_LIST_WEBHOOK_URL, ASIN_UPDATE_WEBHOOK_URL } from './constants.js';
-import { fetchDataAndSyncState } from './data.js';
+import { 
+    N8N_UPLOAD_WEBHOOK_URL, 
+    READY_TO_LIST_WEBHOOK_URL, 
+    ASIN_UPDATE_WEBHOOK_URL,
+    SAVE_FINANCIAL_WEBHOOK_URL 
+} from './constants.js';
+import { fetchDataAndSyncState, AppState } from './data.js';
 
 /**
  * Trimite starea "Gata de listat" pentru un produs sau o comandă întreagă.
- * @param {object} payload - Obiectul de trimis ca JSON
- * @param {HTMLElement} buttonElement - Butonul care a inițiat acțiunea
  */
 export async function sendReadyToList(payload, buttonElement) {
     if (!payload) {
@@ -56,7 +59,6 @@ export async function sendReadyToList(payload, buttonElement) {
 
 /**
  * Gestionează submiterea formularului de upload.
- * @param {Event} event - Evenimentul de submit
  */
 export async function handleUploadSubmit(event) {
     event.preventDefault();
@@ -104,15 +106,12 @@ export async function handleUploadSubmit(event) {
 
 /**
  * Gestionează actualizarea ASIN-ului.
- * @param {HTMLElement} actionButton - Butonul "Editează ASIN"
  */
 export async function handleAsinUpdate(actionButton) {
     const productsku = actionButton.dataset.productsku;
     const oldAsin = actionButton.dataset.oldAsin;
-    // --- MODIFICARE: Citim direct de pe buton ---
     const orderId = actionButton.dataset.orderId;
     const manifestSku = actionButton.dataset.manifestSku;
-    // --- SFÂRȘIT MODIFICARE ---
 
     const newAsin = prompt("Introduceți noul ASIN:", oldAsin);
 
@@ -131,7 +130,7 @@ export async function handleAsinUpdate(actionButton) {
         asin_vechi: oldAsin,
         asin_nou: newAsin.trim(),
         orderId: orderId,
-        manifestsku: manifestSku // <-- MODIFICARE: Adăugat manifestsku
+        manifestsku: manifestSku
     };
 
     try {
@@ -148,7 +147,7 @@ export async function handleAsinUpdate(actionButton) {
         const result = await response.json();
         if (result.status === 'success') {
             alert("ASIN-ul a fost actualizat cu succes! Se reîncarcă datele...");
-            await fetchDataAndSyncState(); // Asigură preluarea datelor noi
+            await fetchDataAndSyncState(); 
             return true; // Succes
         } else {
             alert(`Eroare la actualizare: ${result.message || 'Răspuns invalid de la server.'}`);
@@ -158,5 +157,59 @@ export async function handleAsinUpdate(actionButton) {
         console.error('Eroare la actualizarea ASIN-ului:', error);
         alert(`A apărut o eroare de rețea: ${error.message}`);
         return false;
+    }
+}
+
+// --- NOU: Salvare Date Financiare ---
+export async function saveFinancialDetails(payload, buttonElement) {
+    const originalHTML = buttonElement.innerHTML;
+    buttonElement.disabled = true;
+    buttonElement.innerHTML = '<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>';
+
+    try {
+        // Folosim POST conform discuției
+        const response = await fetch(SAVE_FINANCIAL_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Eroare HTTP: ${response.status}. ${errorText}`);
+        }
+
+        // După salvare reușită, actualizăm AppState LOCAL pentru a reflecta modificările
+        // fără a face un nou request GET.
+        const currentData = AppState.getFinancialData();
+        
+        let found = false;
+        const updatedData = currentData.map(item => {
+            if (item.orderid === payload.orderid) {
+                found = true;
+                // Îmbinăm datele existente cu cele noi salvate
+                return { ...item, ...payload };
+            }
+            return item;
+        });
+
+        // Dacă cumva nu exista în lista locală (deși puțin probabil), îl adăugăm
+        if (!found) {
+            updatedData.push(payload);
+        }
+        
+        // Salvăm în cache-ul local (SessionStorage prin AppState)
+        AppState.setFinancialData(updatedData);
+
+        alert('Datele financiare au fost salvate cu succes!');
+        return true;
+
+    } catch (error) {
+        console.error('Eroare la salvarea datelor financiare:', error);
+        alert(`Eroare la salvare: ${error.message}`);
+        return false;
+    } finally {
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalHTML;
     }
 }

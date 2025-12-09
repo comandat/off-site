@@ -134,41 +134,44 @@ export const templates = {
         </div>
     `,
 
-    financiarProductTable: (products, detailsMap, commandId) => {
+financiarProductTable: (products, detailsMap, commandId, calculatedData = null) => {
         if (!products || products.length === 0) return '';
 
         const processedProducts = products.map(p => {
-            const receivedQty = (p.bncondition || 0) + (p.vgcondition || 0) + (p.gcondition || 0);
-            if (receivedQty <= 0) return null;
+            // Formula: Total Recepționat - Broken
+            const totalReceived = (p.bncondition || 0) + (p.vgcondition || 0) + (p.gcondition || 0) + (p.broken || 0);
+            const displayQty = totalReceived - (p.broken || 0);
+
+            if (displayQty <= 0) return null;
 
             const details = detailsMap[p.asin] || {};
             const roData = details.other_versions?.['romanian'] || {};
             
-            // --- STRICT RO TITLE CHECK ---
             const title = (roData.title || '').trim();
-            // -----------------------------
-            
             const mainImage = (roData.images && roData.images[0]) ? roData.images[0] : ((details.images && details.images[0]) ? details.images[0] : '');
             const price = parseFloat(details.price) || 0;
             const manifestSku = p.manifestsku || '';
 
             const errors = [];
             if (!manifestSku) errors.push("Lipsește ManifestSKU");
-            
-            // Verificăm dacă titlul RO lipsește (fără fallback)
             if (!title || title === "N/A" || title.length < 10) errors.push("Titlu RO lipsă sau invalid");
-            
             if (price <= 0) errors.push("Preț estimat <= 0");
+
+            // Date calculate
+            const calc = calculatedData ? calculatedData[p.uniqueId] : null;
 
             return {
                 ...p,
                 displayTitle: title || 'N/A',
                 displayImage: mainImage,
                 displayPrice: price,
-                displayQty: receivedQty,
+                displayQty: displayQty,
                 manifestSku: manifestSku,
                 errors: errors,
-                hasErrors: errors.length > 0
+                hasErrors: errors.length > 0,
+                calcPercent: calc ? calc.percentDisplay : '-',
+                calcUnitCost: calc ? calc.unitCost.toFixed(2) : '-',
+                calcTotalCost: calc ? calc.totalCost.toFixed(2) : '-'
             };
         }).filter(p => p !== null);
 
@@ -178,10 +181,16 @@ export const templates = {
             return 0;
         });
 
+        // --- CALCUL TOTAL FINAL ---
+        const totalSum = processedProducts.reduce((sum, p) => {
+            const val = parseFloat(p.calcTotalCost);
+            return sum + (isNaN(val) ? 0 : val);
+        }, 0);
+        // --------------------------
+
         const rowsHTML = processedProducts.map(p => {
             const rowClass = p.hasErrors ? 'bg-red-50 hover:bg-red-100 border-l-4 border-red-500' : 'hover:bg-gray-50';
             
-            // --- CUSTOM CSS TOOLTIP ---
             let warningIcon = '';
             if (p.hasErrors) {
                 const errorMsg = p.errors.join(', ');
@@ -194,7 +203,6 @@ export const templates = {
                     </div>
                 `;
             }
-            // --------------------------
 
             const colManifest = `
                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
@@ -214,7 +222,6 @@ export const templates = {
                     </button>
                 </td>`;
 
-            // --- SECURE PLACEHOLDER ---
             const colImage = `
                 <td class="px-4 py-4 whitespace-nowrap">
                     <div class="h-16 w-16 flex-shrink-0">
@@ -238,7 +245,22 @@ export const templates = {
                     ${p.displayQty}
                 </td>`;
 
-            return `<tr class="${rowClass}">${colManifest}${colAsin}${colImage}${colTitle}${colPrice}${colQty}</tr>`;
+            const colPercent = `
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600 text-center bg-yellow-50">
+                    ${p.calcPercent !== '-' ? p.calcPercent : '-'}
+                </td>`;
+            
+            const colUnitCost = `
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-blue-800 font-bold text-right bg-yellow-50">
+                    ${p.calcUnitCost}
+                </td>`;
+
+            const colTotalCost = `
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-green-800 font-bold text-right bg-yellow-50">
+                    ${p.calcTotalCost}
+                </td>`;
+
+            return `<tr class="${rowClass}">${colManifest}${colAsin}${colImage}${colTitle}${colPrice}${colQty}${colPercent}${colUnitCost}${colTotalCost}</tr>`;
         }).join('');
 
         return `
@@ -253,19 +275,28 @@ export const templates = {
                                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Imagine</th>
                                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Titlu (RO)</th>
                                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preț Est.</th>
-                                <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Cantitate</th>
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-yellow-100">Procent Palet</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-blue-800 uppercase tracking-wider bg-yellow-100">Cost Unitar</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-green-800 uppercase tracking-wider bg-yellow-100">Cost Total</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                             ${rowsHTML}
                         </tbody>
+                        <tfoot class="bg-gray-100 font-bold border-t-2 border-gray-300">
+                            <tr>
+                                <td colspan="8" class="px-4 py-3 text-right text-gray-700 uppercase">Total Calculat:</td>
+                                <td class="px-4 py-3 text-right text-green-800 text-lg">${totalSum.toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
         `;
     },
 
-financiarDetails: (commandData, financialData, detailsMap, palletsData) => {
+    financiarDetails: (commandData, financialData, detailsMap, palletsData, calculatedData = null) => {
         if (!commandData) {
             return '<p class="text-gray-500 text-center col-span-full">Selectați o comandă pentru a vedea detaliile.</p>';
         }
@@ -314,31 +345,24 @@ financiarDetails: (commandData, financialData, detailsMap, palletsData) => {
             ${templates.financiarInput('financiar-rata-schimb', 'Rată de Schimb (opțional)', data.rate, false, 'number')}
         `;
 
-        // --- SECTIUNE PALETI ---
         let palletsHTML = '';
         if (palletsData && palletsData.length > 0) {
-            
-            // 1. CALCULĂ NR. PRODUSE PE PALET (manifestsku) din produsele comenzii
             const productCounts = commandData.products.reduce((acc, p) => {
                 const sku = p.manifestsku;
                 if (sku) {
-                    // Verificăm dacă produsul face parte din comanda curentă (implicat de filtrul din main.js)
-                    // Numărăm produsele din comanda curentă care au acel manifestsku.
                     acc[sku] = (acc[sku] || 0) + 1;
                 }
                 return acc;
             }, {});
 
-            // 2. MAPARE ȘI RANDARE: Folosim manifestsku și costwithoutvat din webhook
             const processedPallets = palletsData
-                .filter(p => p.orderid === commandData.id) // Filtrare strictă pe comanda curentă
+                .filter(p => p.orderid === commandData.id) 
                 .map(p => ({
                     palletId: p.manifestsku,
-                    // Folosim numărul de produse calculate, ținând cont că p.manifestsku este cheia
                     productCount: productCounts[p.manifestsku] || 0,
                     cost: parseFloat(p.costwithoutvat || 0).toFixed(2),
                 }))
-                .sort((a, b) => b.productCount - a.productCount); // Sortare după nr. produse
+                .sort((a, b) => b.productCount - a.productCount); 
 
             const palletsRows = processedPallets.map(p => `
                 <tr class="hover:bg-gray-50">
@@ -370,9 +394,8 @@ financiarDetails: (commandData, financialData, detailsMap, palletsData) => {
         } else if (palletsData && Array.isArray(palletsData)) {
              palletsHTML = `<div class="col-span-full mt-8 mb-4"><p class="text-sm text-gray-500 italic">Nu există date despre paleți asociate acestei comenzi în sistemul de costuri.</p></div>`;
         }
-        // -----------------------
 
-        const tableHTML = templates.financiarProductTable(commandData.products, detailsMap || {}, commandData.id);
+        const tableHTML = templates.financiarProductTable(commandData.products, detailsMap || {}, commandData.id, calculatedData);
 
         return `
             <div class="col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -411,6 +434,11 @@ financiarDetails: (commandData, financialData, detailsMap, palletsData) => {
                         <span class="material-icons text-sm">save</span>
                         <span>Salvează Date</span>
                     </button>
+                    
+                    <button id="run-calculations-btn" data-action="run-calculations" class="px-4 py-2 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2 shadow-sm disabled:bg-gray-400">
+                        <span class="material-icons text-sm">calculate</span>
+                        <span>Rulează Calcule</span>
+                    </button>
 
                     <button id="generate-nir-btn" data-action="generate-nir" class="px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed">
                         <span class="material-icons text-sm">receipt_long</span>
@@ -425,8 +453,6 @@ financiarDetails: (commandData, financialData, detailsMap, palletsData) => {
         </div>
         `;
     },
-
-    // --- exportDate a fost eliminat ---
 
     comenzi: (commands) => {
         const commandsHTML = commands.length > 0

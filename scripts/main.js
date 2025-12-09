@@ -5,7 +5,7 @@ import { initGlobalListeners } from './lightbox.js';
 import { sendReadyToList, handleUploadSubmit, handleAsinUpdate, saveFinancialDetails, generateNIR } from './api.js'; 
 import { AppState, fetchDataAndSyncState, fetchProductDetailsInBulk } from './data.js';
 import { templates } from './templates.js';
-import { GET_PALLETS_WEBHOOK_URL } from './constants.js'; // Import constanta pentru paleți
+import { GET_PALLETS_WEBHOOK_URL } from './constants.js'; 
 import { 
     loadTabData, 
     handleProductSave, 
@@ -34,12 +34,177 @@ async function fetchPalletsData(commandId) {
         }
         
         const data = await response.json();
-        // Presupunem că webhook-ul returnează un array sau un obiect cu cheia 'pallets'
         return Array.isArray(data) ? data : (data.pallets || []);
     } catch (error) {
         console.error("Eroare network paleți:", error);
         return [];
     }
+}
+
+// --- LOGICA DE CALCUL FINANCIAR FINALĂ (FILTRARE STRICTĂ) ---
+function performFinancialCalculations(commandId, products, palletsData) {
+    console.group("--- START CALCULE FINANCIARE (FILTRAT) ---");
+
+    // 1. Preluare input-uri financiare
+    const currencyEl = document.getElementById('financiar-moneda');
+    const rateEl = document.getElementById('financiar-rata-schimb');
+    const transportEl = document.getElementById('financiar-cost-transport');
+    
+    const currency = currencyEl ? currencyEl.value : 'RON';
+    let exchangeRate = 1;
+
+    if (currency !== 'RON') {
+        const rawRate = rateEl ? parseFloat(rateEl.value) : 0;
+        if (!rawRate || rawRate <= 0 || rawRate === 1) {
+             alert("EROARE: Cursul valutar este invalid.");
+             console.groupEnd();
+             return null;
+        }
+        exchangeRate = rawRate;
+    }
+
+    // 2. Mapare Costuri Paleți (DOAR PENTRU COMANDA CURENTĂ)
+    const palletMap = {}; 
+    
+    palletsData.forEach(p => {
+        // --- FILTRARE STRICTĂ: Ignorăm paleții din alte comenzi ---
+        // Folosim String() pentru a evita problemele de tip (ex: "123" vs 123)
+        if (String(p.orderid) !== String(commandId)) {
+            return; 
+        }
+
+        if(p.manifestsku) {
+             if (!palletMap[p.manifestsku]) {
+                 const cost = parseFloat(p.costwithoutvat || 0) * exchangeRate;
+                 palletMap[p.manifestsku] = { 
+                     cost: cost, 
+                     totalSales: 0, 
+                     hasItems: false 
+                 };
+             }
+        }
+    });
+
+    // 3. Identificare Produse Valide
+    const validProducts = [];
+    let totalValidQty = 0;
+    let hasCriticalErrors = false;
+
+    for (const p of products) {
+        // Formula: (Bun + VG + G) - Broken = Cantitate Vandabilă
+        const totalReceived = (p.bncondition || 0) + (p.vgcondition || 0) + (p.gcondition || 0) + (p.broken || 0);
+        const qty = totalReceived - (p.broken || 0);
+
+        if (qty <= 0) continue; 
+
+        const details = AppState.getProductDetails(p.asin) || {};
+        const price = parseFloat(details.price) || 0;
+        const manifestSku = p.manifestsku;
+
+        if (!manifestSku || price <= 0) {
+            hasCriticalErrors = true; 
+            break; 
+        }
+
+        // Adunăm valoarea vânzărilor la palet (dacă paletul există în harta filtrată)
+        if (palletMap[manifestSku]) {
+            palletMap[manifestSku].totalSales += (price * qty);
+            palletMap[manifestSku].hasItems = true;
+        } else {
+            // Opțional: Avertisment dacă avem un produs al cărui palet nu e în lista filtrată
+            // console.warn(`Produs ${p.asin} are paletul ${manifestSku} care nu a fost găsit în datele comenzii.`);
+        }
+        
+        validProducts.push({ ...p, price, qty, manifestSku });
+        totalValidQty += qty;
+    }
+
+    if (hasCriticalErrors) {
+        alert("Eroare: Există produse cu preț 0 sau fără ManifestSKU.");
+        console.groupEnd();
+        return null;
+    }
+
+    if (totalValidQty === 0) {
+        alert("Nu există produse valide (cantitate > 0).");
+        console.groupEnd();
+        return null;
+    }
+
+    // 4. Calculăm ȚINTA REALĂ (Doar paleții activi + Transport)
+    let activePalletsTotalCost = 0;
+    Object.keys(palletMap).forEach(sku => {
+        if (palletMap[sku].hasItems) {
+            activePalletsTotalCost += palletMap[sku].cost;
+        }
+    });
+
+    const transportCostTotal = (parseFloat(transportEl ? transportEl.value : 0) || 0) * exchangeRate;
+    
+    // NOUA ȚINTĂ: Suma paleților care chiar au produse + Transport
+    const TARGET_TOTAL = activePalletsTotalCost + transportCostTotal;
+
+    console.log(`Cost Paleți Activi (din comanda curentă): ${activePalletsTotalCost.toFixed(2)}`);
+    console.log(`Cost Transport: ${transportCostTotal.toFixed(2)}`);
+    console.log(`TOTAL DE DISTRIBUIT: ${TARGET_TOTAL.toFixed(2)}`);
+
+    // 5. Calcul Brut per Produs
+    let currentCalculatedSum = 0;
+    const resultsBuffer = [];
+    
+    // Transportul se împarte exact la numărul de produse valide
+    const transportPerUnit = transportCostTotal / totalValidQty;
+
+    validProducts.forEach(p => {
+        const pal = palletMap[p.manifestSku];
+        let percent = 0;
+        let palletComponentTotal = 0;
+        
+        if (pal && pal.totalSales > 0) {
+            // Cota parte din palet
+            const lineValue = p.price * p.qty;
+            const lineShare = lineValue / pal.totalSales;
+            palletComponentTotal = lineShare * pal.cost;
+            percent = p.price / pal.totalSales;
+        }
+
+        // Cota parte din transport
+        const transportComponentTotal = transportPerUnit * p.qty;
+
+        // Total Linie
+        const lineTotalCost = palletComponentTotal + transportComponentTotal;
+        
+        currentCalculatedSum += lineTotalCost;
+
+        resultsBuffer.push({
+            uniqueId: p.uniqueId,
+            qty: p.qty,
+            lineTotalCost: lineTotalCost,
+            percentDisplay: percent
+        });
+    });
+
+    // 6. Corecția de "Centimă" (pentru a da fix pe fix cu TARGET_TOTAL)
+    const diff = TARGET_TOTAL - currentCalculatedSum;
+    console.log(`Diferență rotunjire: ${diff.toFixed(4)} RON`);
+
+    if (resultsBuffer.length > 0) {
+        resultsBuffer[0].lineTotalCost += diff;
+    }
+
+    // 7. Finalizare
+    const finalResults = {};
+    resultsBuffer.forEach(res => {
+        const finalUnitCost = res.lineTotalCost / res.qty;
+        finalResults[res.uniqueId] = {
+            percentDisplay: parseFloat(res.percentDisplay.toFixed(4)),
+            unitCost: finalUnitCost, 
+            totalCost: res.lineTotalCost 
+        };
+    });
+
+    console.groupEnd();
+    return finalResults;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -177,8 +342,51 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 await saveFinancialDetails(payload, actionButton);
             }
+            
+            // --- LOGICA BUTONULUI RULEAZĂ CALCULE ---
+            if (action === 'run-calculations') {
+                const commandId = state.currentCommandId;
+                if (!commandId) {
+                    alert('Selectați o comandă mai întâi.');
+                    return;
+                }
 
-            // --- ACȚIUNE NOUĂ: GENERARE NIR ---
+                const command = AppState.getCommands().find(c => c.id === commandId);
+                actionButton.disabled = true;
+                actionButton.textContent = 'Se calculează...';
+                
+                try {
+                    const palletsData = await fetchPalletsData(commandId);
+                    const calculatedData = performFinancialCalculations(commandId, command.products, palletsData);
+                    
+                    if (calculatedData) {
+                        if (!state.financialCalculations) state.financialCalculations = {};
+                        state.financialCalculations[commandId] = calculatedData;
+                        
+                        const detailsContainer = document.getElementById('financiar-details-container');
+                        
+                        const financialDataList = AppState.getFinancialData();
+                        let matchedFinancial = financialDataList.find(item => item.orderid === commandId) || { orderid: commandId };
+                        
+                         matchedFinancial.currency = document.getElementById('financiar-moneda').value;
+                         matchedFinancial.exchangerate = document.getElementById('financiar-rata-schimb').value;
+                         matchedFinancial.transportcost = document.getElementById('financiar-cost-transport').value;
+                        
+                        const asins = command.products.map(p => p.asin);
+                        const detailsMap = await fetchProductDetailsInBulk(asins);
+                        
+                        detailsContainer.innerHTML = templates.financiarDetails(command, matchedFinancial, detailsMap, palletsData, calculatedData);
+                        alert("Calcule efectuate cu succes!");
+                    }
+                } catch(e) {
+                    console.error(e);
+                    alert("A apărut o eroare la calcule: " + e.message);
+                } finally {
+                    actionButton.disabled = false;
+                    actionButton.innerHTML = '<span class="material-icons text-sm">calculate</span><span>Rulează Calcule</span>';
+                }
+            }
+
             if (action === 'generate-nir') {
                 if (!state.currentCommandId) {
                     alert('Selectați o comandă mai întâi.');
@@ -186,7 +394,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 await generateNIR(state.currentCommandId, actionButton);
             }
-            // -----------------------------------
 
             if (action === 'back-to-comenzi') {
                 state.currentCommandId = null;
@@ -374,12 +581,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const detailsContainer = document.getElementById('financiar-details-container');
             const saveBtn = document.getElementById('save-financial-btn');
             const nirBtn = document.getElementById('generate-nir-btn');
+            const runCalcBtn = document.getElementById('run-calculations-btn');
             
             if (!detailsContainer) return;
 
-            // Resetăm butoanele
             if (saveBtn) saveBtn.disabled = !selectedCommandId;
             if (nirBtn) nirBtn.disabled = !selectedCommandId;
+            if (runCalcBtn) runCalcBtn.disabled = !selectedCommandId;
 
             if (!selectedCommandId) {
                 detailsContainer.innerHTML = templates.financiarDetails(null, null, null, null);
@@ -398,14 +606,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 matchedFinancial = { orderid: selectedCommandId };
             }
 
-            // --- FETCH PALEȚI ---
             const palletsData = await fetchPalletsData(selectedCommandId);
-            // -------------------
 
             const asins = commandData.products.map(p => p.asin);
             const detailsMap = await fetchProductDetailsInBulk(asins);
 
-            detailsContainer.innerHTML = templates.financiarDetails(commandData, matchedFinancial, detailsMap, palletsData);
+            const calculatedData = state.financialCalculations ? state.financialCalculations[selectedCommandId] : null;
+
+            detailsContainer.innerHTML = templates.financiarDetails(commandData, matchedFinancial, detailsMap, palletsData, calculatedData);
         }
     });
 

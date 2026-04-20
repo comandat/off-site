@@ -1,0 +1,63 @@
+:root {
+    --primary-color: #2563eb;
+}
+
+/* Stil de bază pentru butoanele din sidebar */
+.sidebar-btn {
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    color: #4b5563; /* gray-600 */
+}
+
+/* Stil pentru butonul activ/selectat */
+.sidebar-btn.active-tab {
+    background-color: #e0f2fe; /* light blue */
+    color: #0284c7; /* sky-700 */
+    font-weight: 500;
+}
+
+/* Stil la hover pentru butoanele inactive */
+.sidebar-btn:not(.active-tab):hover {
+    background-color: #f3f4f6; /* gray-100 */
+}
+
+/* Clasa pentru a ascunde elemente (folosită de JS) */
+.hidden {
+    display: none;
+}
+
+/* Animația de rotație pentru săgeata din secțiunile collapsible */
+.collapsible-header .arrow {
+    transition: transform 0.3s ease;
+}
+
+/* Starea "deschisă" a săgeții */
+.collapsible-header.open .arrow {
+    transform: rotate(0deg);
+}
+
+/* NOU: Asigură-te că meniul dropdown de pe cardul comenzii este vizibil */
+.command-options-dropdown .dropdown-menu {
+    position: absolute;
+    /* Tailwind 'z-20' este z-index: 20; */
+}
+
+/* Connector dots pentru drag-to-connect */
+.connector-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    cursor: crosshair;
+    transition: background-color 0.15s, transform 0.15s;
+    border: 2px solid transparent;
+}
+.connector-dot:hover {
+    transform: scale(1.3);
+}
+.connection-line {
+    cursor: pointer;
+}
+.connection-line:hover {
+    opacity: 1 !important;
+    stroke-width: 3;
+}

@@ -1151,8 +1151,8 @@ export async function loadProductAttributesFromDB(asin) {
 
                 if (fetchResult) {
                     const resolvedId = fetchResult.resolvedCategoryId || platformData.categoryId;
-                    const resolvedName = fetchResult.resolvedCategoryName;
-                    const resolvedNameRo = fetchResult.resolvedCategoryNameRo || null;
+                    const resolvedName = fetchResult.resolvedCategoryName || platformData.categoryName;
+                    const resolvedNameRo = fetchResult.resolvedCategoryNameRo || platformData.categoryNameRo;
 
                     if (resolvedId !== platformData.categoryId) {
                         mappingState.categories[platform] = resolvedId;

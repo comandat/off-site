@@ -583,6 +583,11 @@ const mappingState = {
     // savedValues[platform][categoryId] = { attrId: value, ... }
     // Indexat pe categoryId ca să nu se piardă munca la switch accidental de categorie.
     savedValues: Object.fromEntries(MARKETPLACES.map(m => [m.id, {}])),
+    // categoryNames[platform] = { name, nameRo } — sursa de adevăr pentru numele
+    // categoriei salvate, INDEPENDENTĂ de DOM. Re-popularea containerului de
+    // competiție (templates.competition) recreează <select>-ul și șterge dataset-urile,
+    // așa că populateCategorySelector trebuie să citească numele de aici, nu din DOM.
+    categoryNames: Object.fromEntries(MARKETPLACES.map(m => [m.id, null])),
     searchTimers: {},
     // Când e true, schimbarea categoriei eMAG NU declanșează lookup automat
     // de mapări pe Trendyol/Temu. Folosit la restore din DB ca să respectăm
@@ -612,29 +617,30 @@ export function populateCategorySelector() {
     }
 
     // Dacă avem o categorie deja încărcată din DB și nu apare în suggestions,
-    // păstrăm opțiunea ei (cu numele deja setat în selector, dacă există).
+    // păstrăm opțiunea ei. Sursa de adevăr pentru nume e mappingState.categoryNames
+    // (populat de loadProductAttributesFromDB), care supraviețuiește re-randării
+    // containerului de competiție. Fallback pe DOM/dataset doar dacă lipsește.
     if (savedEmagId && !categories.find(c => String(c.id) === String(savedEmagId))) {
+        const cached = mappingState.categoryNames?.emag;
         const existingOpt = selector.querySelector(`option[value="${savedEmagId}"]`);
-        const savedName = (existingOpt?.dataset?.name || existingOpt?.textContent || '').trim()
+        const savedName = (cached?.name)
+            || (existingOpt?.dataset?.name || existingOpt?.textContent || '').trim()
             || `Categorie ${savedEmagId}`;
-        categories.unshift({ id: savedEmagId, name: savedName });
+        const savedNameRo = cached?.nameRo || existingOpt?.dataset?.nameRo || null;
+        const display = savedNameRo ? `${savedNameRo} (${savedName})` : savedName;
+        categories.unshift({ id: savedEmagId, name: savedName, _display: display, _nameRo: savedNameRo });
     }
-    const seen = new Map();
-categories.forEach(cat => {
-    const key = (cat.name || '').toLowerCase().trim();
-    if (!seen.has(key) || String(cat.id) === String(savedEmagId)) {
-        seen.set(key, cat);
-    }
-});
-const dedupedCategories = Array.from(seen.values());
 
-selector.innerHTML = dedupedCategories.map(cat => {
-    const safeName = String(cat.name || '').replace(/"/g, '&quot;');
-    const isSelected = savedEmagId
-        ? String(cat.id) === String(savedEmagId)
-        : cat === dedupedCategories[0];
-    return `<option value="${cat.id}" data-name="${safeName}"${isSelected ? ' selected' : ''}>${safeName}</option>`;
-}).join('');
+    selector.innerHTML = categories.map(cat => {
+        const safeName = String(cat.name || '').replace(/"/g, '&quot;');
+        const safeNameRo = cat._nameRo ? String(cat._nameRo).replace(/"/g, '&quot;') : '';
+        const display = (cat._display || cat.name || '').toString().replace(/"/g, '&quot;');
+        const roAttr = safeNameRo ? ` data-name-ro="${safeNameRo}"` : '';
+        const isSelected = savedEmagId
+            ? String(cat.id) === String(savedEmagId)
+            : cat === categories[0];
+        return `<option value="${cat.id}" data-name="${safeName}"${roAttr}${isSelected ? ' selected' : ''}>${display}</option>`;
+    }).join('');
 
     // Sincronizăm selector-ul pe categoria activă explicit (fallback)
     if (savedEmagId) {
@@ -668,11 +674,15 @@ export function populateTemuCategorySelector() {
 
     // Dacă produsul are deja o categorie Temu salvată care nu e în recomandări,
     // o păstrăm ca opțiune selectată (evităm pierderea alegerii user-ului).
+    // Sursa de adevăr: mappingState.categoryNames.temu (vezi populateCategorySelector).
     if (savedTemuId && !list.find(m => String(m.categoryId) === String(savedTemuId))) {
+        const cached = mappingState.categoryNames?.temu;
         const existingOpt = selector.querySelector(`option[value="${savedTemuId}"]`);
-        const savedName = (existingOpt?.dataset?.name || existingOpt?.textContent || '').trim()
+        const savedName = (cached?.name)
+            || (existingOpt?.dataset?.name || existingOpt?.textContent || '').trim()
             || `Categorie ${savedTemuId}`;
-        list.unshift({ categoryId: savedTemuId, categoryName: savedName });
+        const savedNameRo = cached?.nameRo || existingOpt?.dataset?.nameRo || null;
+        list.unshift({ categoryId: savedTemuId, categoryName: savedName, nameRo: savedNameRo });
     }
 
     const targetId = savedTemuId ? String(savedTemuId) : null;
@@ -801,17 +811,15 @@ function populateMappedCategoryDropdown(platform, list, selectedId = null) {
     const emptyOpt = '<option value="">Selectați o categorie...</option>';
     const opts = list.map(m => {
         const badge = m.confidence === 'manual' ? ' ✓' : '';
+        // EN-only în data-name: fetchAndRenderAttributes folosește dataset.name ca fallback
+        // pentru lookup-ul de categorii în v2-category-attributes (care caută după numele
+        // oficial EN, nu după traducere). Afișarea însă poate fi bilingvă.
         const enName = (m.categoryName || ('Categorie ' + m.categoryId)).replace(/"/g, '&quot;');
-
-        // Dacă m.nameRo lipsește, caută în opțiunea existentă din selector (setată de loadProductAttributesFromDB)
-        const existingOpt = selector.querySelector(`option[value="${m.categoryId}"]`);
-        const nameRo = m.nameRo || existingOpt?.dataset?.nameRo || '';
-
-        const displayName = nameRo && nameRo.toLowerCase() !== (m.categoryName || '').toLowerCase()
-            ? `${String(nameRo).replace(/"/g, '&quot;')} (${enName})`
+        const displayName = m.nameRo
+            ? `${String(m.nameRo).replace(/"/g, '&quot;')} (${enName})`
             : enName;
         const isSel = String(m.categoryId) === targetId ? ' selected' : '';
-        return `<option value="${m.categoryId}" data-name="${enName}" data-name-ro="${nameRo}"${isSel}>${displayName}${badge}</option>`;
+        return `<option value="${m.categoryId}" data-name="${enName}"${isSel}>${displayName}${badge}</option>`;
     }).join('');
     selector.innerHTML = emptyOpt + opts;
     if (targetId) selector.value = targetId;
@@ -859,11 +867,10 @@ async function fetchAndRenderAttributes(platform, categoryId) {
             ? attrs.map(attr => renderAttributeRow(attr, platform)).join('')
             : '<p class="text-xs text-gray-400 italic">Nu există caracteristici pentru această categorie</p>';
         initAttrDropdowns(platform);
-return {
-    resolvedCategoryId: data.resolvedCategoryId ? String(data.resolvedCategoryId) : categoryId,
-    resolvedCategoryName: data.resolvedCategoryName || categoryName,
-    resolvedCategoryNameRo: data.resolvedCategoryNameRo || null
-};
+        return {
+            resolvedCategoryId: data.resolvedCategoryId ? String(data.resolvedCategoryId) : categoryId,
+            resolvedCategoryName: data.resolvedCategoryName || categoryName
+        };
     } catch {
         container.innerHTML = '<p class="text-xs text-red-400 italic">Caracteristicile vor fi disponibile după configurarea webhook-ului</p>';
         return null;
@@ -1095,8 +1102,15 @@ async function saveAttributesToDB(asin) {
 }
 
 export async function loadProductAttributesFromDB(asin) {
+    // CRITICAL: mappingState e la nivel de modul, nu per-produs. Trebuie resetat
+    // complet la începutul fiecărei încărcări de produs altfel datele produsului
+    // anterior rămân în memorie și contaminează produsul curent. Scenariu clasic:
+    // Produs A salvat cu Temu=500, apoi deschis Produs B care NU are Temu salvat;
+    // fără reset, categories.temu rămâne 500 din A și la save-ul lui B se trimite
+    // accidental Temu=500 deși user-ul nu a ales nimic pe Temu pentru B.
     mappingState.categories = Object.fromEntries(MARKETPLACES.map(m => [m.id, null]));
     mappingState.savedValues = Object.fromEntries(MARKETPLACES.map(m => [m.id, {}]));
+    mappingState.categoryNames = Object.fromEntries(MARKETPLACES.map(m => [m.id, null]));
     mappingState.searchTimers = {};
     mappingState._suppressEmagMappingLookup = false;
 
@@ -1111,31 +1125,28 @@ export async function loadProductAttributesFromDB(asin) {
         const data = raw?.get_product_attributes_v2 || raw;
         const listingData = data?.listing_data || {};
         if (!Object.keys(listingData).length) return;
-
+        // Suprimă lookup-ul automat de mapări cât timp restaurăm datele salvate —
+        // userul a confirmat deja categoriile pentru acest produs, nu le rescriem.
         mappingState._suppressEmagMappingLookup = true;
         try {
+            // Restaurare categorii și valori per platformă
             const platforms = MARKETPLACES.map(m => m.id);
             for (const platform of platforms) {
                 const platformData = listingData[platform];
                 if (!platformData?.categoryId) continue;
-
+                // Salvăm valorile din DB indexate pe (platform, categoryId)
                 if (!mappingState.savedValues[platform]) mappingState.savedValues[platform] = {};
                 mappingState.savedValues[platform][platformData.categoryId] = platformData.attributes || {};
                 mappingState.categories[platform] = platformData.categoryId;
-
+                mappingState.categoryNames[platform] = {
+                    name: platformData.categoryName || null,
+                    nameRo: platformData.categoryNameRo || null
+                };
                 const selector = document.getElementById(`category-selector-${platform}`);
                 let opt = null;
                 if (selector) {
                     const catName = platformData.categoryName || `Categorie ${platformData.categoryId}`;
-
-                    // Elimină opțiuni cu același nume dar ID diferit (duplicate din suggestii eMAG)
-                    selector.querySelectorAll('option').forEach(o => {
-                        if (o.value !== String(platformData.categoryId) &&
-                            (o.dataset.name === catName || o.textContent.trim() === catName)) {
-                            o.remove();
-                        }
-                    });
-
+                    // Adaugă opțiunea dacă nu există deja
                     opt = selector.querySelector(`option[value="${platformData.categoryId}"]`);
                     if (!opt) {
                         opt = document.createElement('option');
@@ -1146,14 +1157,13 @@ export async function loadProductAttributesFromDB(asin) {
                     }
                     selector.value = platformData.categoryId;
                 }
-
                 const fetchResult = await fetchAndRenderAttributes(platform, platformData.categoryId);
-
+                // Aplică ID-ul și numele rezolvate de backend (name-based lookup când ID-ul din
+                // competiție eMAG e greșit dar numele e corect → backend găsește ID-ul canonical).
                 if (fetchResult) {
                     const resolvedId = fetchResult.resolvedCategoryId || platformData.categoryId;
-                    const resolvedName = fetchResult.resolvedCategoryName || platformData.categoryName;
-                    const resolvedNameRo = fetchResult.resolvedCategoryNameRo || platformData.categoryNameRo;
-
+                    const resolvedName = fetchResult.resolvedCategoryName;
+                    const resolvedNameRo = fetchResult.resolvedCategoryNameRo || null;
                     if (resolvedId !== platformData.categoryId) {
                         mappingState.categories[platform] = resolvedId;
                         if (!mappingState.savedValues[platform]) mappingState.savedValues[platform] = {};
@@ -1162,30 +1172,26 @@ export async function loadProductAttributesFromDB(asin) {
                             delete mappingState.savedValues[platform][platformData.categoryId];
                         }
                     }
-
+                    // Update categoryNames cu valorile rezolvate de backend (sursa canonică).
+                    // Asta supraviețuiește re-randării containerului de competiție, deci
+                    // populateCategorySelector poate citi numele de aici după re-render.
+                    mappingState.categoryNames[platform] = {
+                        name: resolvedName || mappingState.categoryNames[platform]?.name || null,
+                        nameRo: resolvedNameRo || mappingState.categoryNames[platform]?.nameRo || null
+                    };
                     if (resolvedName && selector) {
                         const currentOpt = selector.querySelector(`option[value="${resolvedId}"]`) || opt;
                         if (currentOpt) {
-                            const label = resolvedNameRo && resolvedNameRo.toLowerCase() !== resolvedName.toLowerCase()
+                            const display = resolvedNameRo
                                 ? `${resolvedNameRo} (${resolvedName})`
                                 : resolvedName;
-                            currentOpt.textContent = label;
+                            currentOpt.textContent = display;
                             currentOpt.dataset.name = resolvedName;
-                            currentOpt.dataset.nameRo = resolvedNameRo || '';
+                            if (resolvedNameRo) currentOpt.dataset.nameRo = resolvedNameRo;
                         }
-
-                        // Elimină duplicate apărute după rezolvarea ID-ului
-                        selector.querySelectorAll('option').forEach(o => {
-                            if (o !== (selector.querySelector(`option[value="${resolvedId}"]`) || opt) &&
-                                (o.dataset.name === resolvedName || o.textContent.trim() === resolvedName)) {
-                                o.remove();
-                            }
-                        });
-
                         selector.value = resolvedId;
                     }
                 }
-
                 restoreAttributeValues(platform, platformData.attributes || {});
             }
             initMarketplaceReorder();
@@ -1193,6 +1199,9 @@ export async function loadProductAttributesFromDB(asin) {
             mappingState._suppressEmagMappingLookup = false;
         }
 
+        // După restaurare: dacă produsul are eMAG salvat dar NU are salvare pe vreo altă
+        // platformă, declanșăm lookup-ul de mapări ca să pre-populăm dropdown-urile de pe
+        // celelalte platforme (feature cerut explicit: auto-mapping pe baza eMAG la page load).
         const emagId = listingData.emag?.categoryId;
         const otherPlatforms = MARKETPLACES.map(m => m.id).filter(id => id !== 'emag');
         const missingTarget = emagId && otherPlatforms.some(p => !listingData[p]?.categoryId);
@@ -1291,7 +1300,6 @@ function renderCategoryResults(platform, categories) {
                     selector.appendChild(existing);
                 }
                 existing.textContent = optionLabel;
-                existing.dataset.name = catName;
                 existing.dataset.nameRo = catNameRo;
                 selector.value = catId;
             }

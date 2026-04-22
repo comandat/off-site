@@ -1265,6 +1265,7 @@ function renderCategoryResults(platform, categories) {
                     selector.appendChild(existing);
                 }
                 existing.textContent = optionLabel;
+                existing.dataset.name = catName;
                 existing.dataset.nameRo = catNameRo;
                 selector.value = catId;
             }

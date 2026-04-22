@@ -817,10 +817,26 @@ async function applyCategoryMappings(emagCategoryId) {
             if (!listHasExisting) {
                 const best = list.find(m => m.isBest) || list[0];
                 if (best && best.categoryId) {
+                    // IMPORTANT: actualizăm și categoryNames cu numele mapării noi.
+                    // Altfel populateTemuCategorySelector (re-rulat după re-randarea competiției)
+                    // ar reciti numele vechi din DB ("Handheld Steamers") și ar suprascrie
+                    // afișarea peste mapare (care e pe alt ID, ex: 11634 "Steam Cleaners").
+                    mappingState.categoryNames[targetPlatform] = {
+                        name:   best.categoryName || mappingState.categoryNames[targetPlatform]?.name || null,
+                        nameRo: best.nameRo       || mappingState.categoryNames[targetPlatform]?.nameRo || null
+                    };
                     await handleCategoryChange(targetPlatform, String(best.categoryId));
                 }
             } else {
-                // Altfel, doar ne asigurăm că selector-ul arată categoria deja activă
+                // Altfel, doar ne asigurăm că selector-ul arată categoria deja activă.
+                // Refresh categoryNames din mapping (poate avea nameRo mai bun decât listing_data).
+                const matched = list.find(m => String(m.categoryId) === String(existingId));
+                if (matched) {
+                    mappingState.categoryNames[targetPlatform] = {
+                        name:   matched.categoryName || mappingState.categoryNames[targetPlatform]?.name || null,
+                        nameRo: matched.nameRo       || mappingState.categoryNames[targetPlatform]?.nameRo || null
+                    };
+                }
                 const selector = document.getElementById(`category-selector-${targetPlatform}`);
                 if (selector) selector.value = String(existingId);
             }

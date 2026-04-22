@@ -1132,6 +1132,11 @@ export async function loadProductAttributesFromDB(asin) {
                         opt.dataset.name = catName;
                         selector.appendChild(opt);
                     }
+                    selector.querySelectorAll('option').forEach(o => {
+                    if (o !== opt && (o.dataset.name === catName || o.textContent.trim() === catName)) {
+                        o.remove();
+                    }
+                    });
                     selector.value = platformData.categoryId;
                 }
                 const fetchResult = await fetchAndRenderAttributes(platform, platformData.categoryId);

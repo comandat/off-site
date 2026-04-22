@@ -910,10 +910,11 @@ async function fetchAndRenderAttributes(platform, categoryId) {
             ? attrs.map(attr => renderAttributeRow(attr, platform)).join('')
             : '<p class="text-xs text-gray-400 italic">Nu există caracteristici pentru această categorie</p>';
         initAttrDropdowns(platform);
-        return {
-            resolvedCategoryId: data.resolvedCategoryId ? String(data.resolvedCategoryId) : categoryId,
-            resolvedCategoryName: data.resolvedCategoryName || categoryName
-        };
+return {
+    resolvedCategoryId: data.resolvedCategoryId ? String(data.resolvedCategoryId) : categoryId,
+    resolvedCategoryName: data.resolvedCategoryName || categoryName,
+    resolvedCategoryNameRo: data.resolvedCategoryNameRo || data.resolved_category_name_ro || null
+};
     } catch {
         container.innerHTML = '<p class="text-xs text-red-400 italic">Caracteristicile vor fi disponibile după configurarea webhook-ului</p>';
         return null;

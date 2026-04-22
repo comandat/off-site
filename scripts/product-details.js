@@ -631,6 +631,30 @@ export function populateCategorySelector() {
         categories.unshift({ id: savedEmagId, name: savedName, _display: display, _nameRo: savedNameRo });
     }
 
+    // Dedup: competiția eMAG poate returna un ID greșit (ex: 554) cu același nume ca
+    // ID-ul canonic salvat (820). Eliminăm duplicatele după nume, păstrând savedEmagId.
+    if (savedEmagId) {
+        const seen = new Map();
+        const deduped = [];
+        for (const cat of categories) {
+            const key = String(cat.name || '').trim().toLowerCase();
+            if (!key) { deduped.push(cat); continue; }
+            const prev = seen.get(key);
+            if (!prev) {
+                seen.set(key, cat);
+                deduped.push(cat);
+            } else if (String(cat.id) === String(savedEmagId)) {
+                // înlocuim varianta deja adăugată cu cea salvată
+                const idx = deduped.indexOf(prev);
+                if (idx >= 0) deduped[idx] = cat;
+                seen.set(key, cat);
+            }
+            // altfel: ignorăm duplicatul
+        }
+        categories.length = 0;
+        categories.push(...deduped);
+    }
+
     selector.innerHTML = categories.map(cat => {
         const safeName = String(cat.name || '').replace(/"/g, '&quot;');
         const safeNameRo = cat._nameRo ? String(cat._nameRo).replace(/"/g, '&quot;') : '';
@@ -773,7 +797,10 @@ async function applyCategoryMappings(emagCategoryId) {
         // Temu are propriul flux de recomandări (per-produs, via Temu API) încărcat în
         // populateTemuCategorySelector, NU derivat din categoria eMAG. Îl excludem aici
         // ca să nu suprascriem recomandarea specifică produsului la schimbarea categoriei eMAG.
-        const targetPlatforms = MARKETPLACES.map(m => m.id).filter(id => id !== 'emag' && id !== 'temu');
+        // Includem TOATE platformele (mai puțin sursa = eMAG). Mapările salvate manual
+        // de user au prioritate față de recomandările Temu API per-produs (care pot fi
+        // goale, ca în cazul când temu_recommendations vine []).
+        const targetPlatforms = MARKETPLACES.map(m => m.id).filter(id => id !== 'emag');
         for (const targetPlatform of targetPlatforms) {
             const list = Array.isArray(mappings[targetPlatform]) ? mappings[targetPlatform] : [];
             if (!list.length) continue;
@@ -1202,7 +1229,10 @@ export async function loadProductAttributesFromDB(asin) {
         // După restaurare: dacă produsul are eMAG salvat dar NU are salvare pe vreo altă
         // platformă, declanșăm lookup-ul de mapări ca să pre-populăm dropdown-urile de pe
         // celelalte platforme (feature cerut explicit: auto-mapping pe baza eMAG la page load).
-        const emagId = listingData.emag?.categoryId;
+        // IMPORTANT: folosim ID-ul REZOLVAT din mappingState (canonic, ex: 820),
+        // NU pe cel raw din DB (poate fi greșit, ex: 554 din vechea logică eMAG).
+        // mappingState.categories.emag a fost actualizat în loop după fetchAndRenderAttributes.
+        const emagId = mappingState.categories.emag || listingData.emag?.categoryId;
         const otherPlatforms = MARKETPLACES.map(m => m.id).filter(id => id !== 'emag');
         const missingTarget = emagId && otherPlatforms.some(p => !listingData[p]?.categoryId);
         if (missingTarget) {

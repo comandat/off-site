@@ -849,10 +849,11 @@ async function fetchAndRenderAttributes(platform, categoryId) {
             ? attrs.map(attr => renderAttributeRow(attr, platform)).join('')
             : '<p class="text-xs text-gray-400 italic">Nu există caracteristici pentru această categorie</p>';
         initAttrDropdowns(platform);
-        return {
-            resolvedCategoryId: data.resolvedCategoryId ? String(data.resolvedCategoryId) : categoryId,
-            resolvedCategoryName: data.resolvedCategoryName || categoryName
-        };
+return {
+    resolvedCategoryId: data.resolvedCategoryId ? String(data.resolvedCategoryId) : categoryId,
+    resolvedCategoryName: data.resolvedCategoryName || categoryName,
+    resolvedCategoryNameRo: data.resolvedCategoryNameRo || null
+};
     } catch {
         container.innerHTML = '<p class="text-xs text-red-400 italic">Caracteristicile vor fi disponibile după configurarea webhook-ului</p>';
         return null;
@@ -1084,12 +1085,6 @@ async function saveAttributesToDB(asin) {
 }
 
 export async function loadProductAttributesFromDB(asin) {
-    // CRITICAL: mappingState e la nivel de modul, nu per-produs. Trebuie resetat
-    // complet la începutul fiecărei încărcări de produs altfel datele produsului
-    // anterior rămân în memorie și contaminează produsul curent. Scenariu clasic:
-    // Produs A salvat cu Temu=500, apoi deschis Produs B care NU are Temu salvat;
-    // fără reset, categories.temu rămâne 500 din A și la save-ul lui B se trimite
-    // accidental Temu=500 deși user-ul nu a ales nimic pe Temu pentru B.
     mappingState.categories = Object.fromEntries(MARKETPLACES.map(m => [m.id, null]));
     mappingState.savedValues = Object.fromEntries(MARKETPLACES.map(m => [m.id, {}]));
     mappingState.searchTimers = {};
@@ -1106,24 +1101,31 @@ export async function loadProductAttributesFromDB(asin) {
         const data = raw?.get_product_attributes_v2 || raw;
         const listingData = data?.listing_data || {};
         if (!Object.keys(listingData).length) return;
-        // Suprimă lookup-ul automat de mapări cât timp restaurăm datele salvate —
-        // userul a confirmat deja categoriile pentru acest produs, nu le rescriem.
+
         mappingState._suppressEmagMappingLookup = true;
         try {
-            // Restaurare categorii și valori per platformă
             const platforms = MARKETPLACES.map(m => m.id);
             for (const platform of platforms) {
                 const platformData = listingData[platform];
                 if (!platformData?.categoryId) continue;
-                // Salvăm valorile din DB indexate pe (platform, categoryId)
+
                 if (!mappingState.savedValues[platform]) mappingState.savedValues[platform] = {};
                 mappingState.savedValues[platform][platformData.categoryId] = platformData.attributes || {};
                 mappingState.categories[platform] = platformData.categoryId;
+
                 const selector = document.getElementById(`category-selector-${platform}`);
                 let opt = null;
                 if (selector) {
                     const catName = platformData.categoryName || `Categorie ${platformData.categoryId}`;
-                    // Adaugă opțiunea dacă nu există deja
+
+                    // Elimină opțiuni cu același nume dar ID diferit (duplicate din suggestii eMAG)
+                    selector.querySelectorAll('option').forEach(o => {
+                        if (o.value !== String(platformData.categoryId) &&
+                            (o.dataset.name === catName || o.textContent.trim() === catName)) {
+                            o.remove();
+                        }
+                    });
+
                     opt = selector.querySelector(`option[value="${platformData.categoryId}"]`);
                     if (!opt) {
                         opt = document.createElement('option');
@@ -1132,19 +1134,16 @@ export async function loadProductAttributesFromDB(asin) {
                         opt.dataset.name = catName;
                         selector.appendChild(opt);
                     }
-                    selector.querySelectorAll('option').forEach(o => {
-                    if (o !== opt && (o.dataset.name === catName || o.textContent.trim() === catName)) {
-                        o.remove();
-                    }
-                    });
                     selector.value = platformData.categoryId;
                 }
+
                 const fetchResult = await fetchAndRenderAttributes(platform, platformData.categoryId);
-                // Aplică ID-ul și numele rezolvate de backend (name-based lookup când ID-ul din
-                // competiție eMAG e greșit dar numele e corect → backend găsește ID-ul canonical).
+
                 if (fetchResult) {
                     const resolvedId = fetchResult.resolvedCategoryId || platformData.categoryId;
                     const resolvedName = fetchResult.resolvedCategoryName;
+                    const resolvedNameRo = fetchResult.resolvedCategoryNameRo || null;
+
                     if (resolvedId !== platformData.categoryId) {
                         mappingState.categories[platform] = resolvedId;
                         if (!mappingState.savedValues[platform]) mappingState.savedValues[platform] = {};
@@ -1153,15 +1152,30 @@ export async function loadProductAttributesFromDB(asin) {
                             delete mappingState.savedValues[platform][platformData.categoryId];
                         }
                     }
+
                     if (resolvedName && selector) {
                         const currentOpt = selector.querySelector(`option[value="${resolvedId}"]`) || opt;
                         if (currentOpt) {
-                            currentOpt.textContent = resolvedName;
+                            const label = resolvedNameRo && resolvedNameRo.toLowerCase() !== resolvedName.toLowerCase()
+                                ? `${resolvedNameRo} (${resolvedName})`
+                                : resolvedName;
+                            currentOpt.textContent = label;
                             currentOpt.dataset.name = resolvedName;
+                            currentOpt.dataset.nameRo = resolvedNameRo || '';
                         }
+
+                        // Elimină duplicate apărute după rezolvarea ID-ului
+                        selector.querySelectorAll('option').forEach(o => {
+                            if (o !== (selector.querySelector(`option[value="${resolvedId}"]`) || opt) &&
+                                (o.dataset.name === resolvedName || o.textContent.trim() === resolvedName)) {
+                                o.remove();
+                            }
+                        });
+
                         selector.value = resolvedId;
                     }
                 }
+
                 restoreAttributeValues(platform, platformData.attributes || {});
             }
             initMarketplaceReorder();
@@ -1169,9 +1183,6 @@ export async function loadProductAttributesFromDB(asin) {
             mappingState._suppressEmagMappingLookup = false;
         }
 
-        // După restaurare: dacă produsul are eMAG salvat dar NU are salvare pe vreo altă
-        // platformă, declanșăm lookup-ul de mapări ca să pre-populăm dropdown-urile de pe
-        // celelalte platforme (feature cerut explicit: auto-mapping pe baza eMAG la page load).
         const emagId = listingData.emag?.categoryId;
         const otherPlatforms = MARKETPLACES.map(m => m.id).filter(id => id !== 'emag');
         const missingTarget = emagId && otherPlatforms.some(p => !listingData[p]?.categoryId);

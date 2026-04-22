@@ -619,14 +619,22 @@ export function populateCategorySelector() {
             || `Categorie ${savedEmagId}`;
         categories.unshift({ id: savedEmagId, name: savedName });
     }
+    const seen = new Map();
+categories.forEach(cat => {
+    const key = (cat.name || '').toLowerCase().trim();
+    if (!seen.has(key) || String(cat.id) === String(savedEmagId)) {
+        seen.set(key, cat);
+    }
+});
+const dedupedCategories = Array.from(seen.values());
 
-    selector.innerHTML = categories.map(cat => {
-        const safeName = String(cat.name || '').replace(/"/g, '&quot;');
-        const isSelected = savedEmagId
-            ? String(cat.id) === String(savedEmagId)
-            : cat === categories[0];
-        return `<option value="${cat.id}" data-name="${safeName}"${isSelected ? ' selected' : ''}>${safeName}</option>`;
-    }).join('');
+selector.innerHTML = dedupedCategories.map(cat => {
+    const safeName = String(cat.name || '').replace(/"/g, '&quot;');
+    const isSelected = savedEmagId
+        ? String(cat.id) === String(savedEmagId)
+        : cat === dedupedCategories[0];
+    return `<option value="${cat.id}" data-name="${safeName}"${isSelected ? ' selected' : ''}>${safeName}</option>`;
+}).join('');
 
     // Sincronizăm selector-ul pe categoria activă explicit (fallback)
     if (savedEmagId) {
@@ -793,15 +801,17 @@ function populateMappedCategoryDropdown(platform, list, selectedId = null) {
     const emptyOpt = '<option value="">Selectați o categorie...</option>';
     const opts = list.map(m => {
         const badge = m.confidence === 'manual' ? ' ✓' : '';
-        // EN-only în data-name: fetchAndRenderAttributes folosește dataset.name ca fallback
-        // pentru lookup-ul de categorii în v2-category-attributes (care caută după numele
-        // oficial EN, nu după traducere). Afișarea însă poate fi bilingvă.
         const enName = (m.categoryName || ('Categorie ' + m.categoryId)).replace(/"/g, '&quot;');
-        const displayName = m.nameRo
-            ? `${String(m.nameRo).replace(/"/g, '&quot;')} (${enName})`
+
+        // Dacă m.nameRo lipsește, caută în opțiunea existentă din selector (setată de loadProductAttributesFromDB)
+        const existingOpt = selector.querySelector(`option[value="${m.categoryId}"]`);
+        const nameRo = m.nameRo || existingOpt?.dataset?.nameRo || '';
+
+        const displayName = nameRo && nameRo.toLowerCase() !== (m.categoryName || '').toLowerCase()
+            ? `${String(nameRo).replace(/"/g, '&quot;')} (${enName})`
             : enName;
         const isSel = String(m.categoryId) === targetId ? ' selected' : '';
-        return `<option value="${m.categoryId}" data-name="${enName}"${isSel}>${displayName}${badge}</option>`;
+        return `<option value="${m.categoryId}" data-name="${enName}" data-name-ro="${nameRo}"${isSel}>${displayName}${badge}</option>`;
     }).join('');
     selector.innerHTML = emptyOpt + opts;
     if (targetId) selector.value = targetId;
